@@ -1,0 +1,9 @@
+siglip_local/
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+*.log
+.DS_Store
+Thumbs.db
