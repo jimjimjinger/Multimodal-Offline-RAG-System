@@ -1,2 +1,31 @@
-# Multimodal-Offline-RAG-System
-졸업 논문. 사용자가 로봇에 대한 질문을 건낼 시 글과 그림을 동시에 제공해주는 시스템입니다. RAG를 사용하며 제한된 환경에서 사용할 수 있도록 로컬 AI와 최소 RAM을 사용하는 것이 특징입니다. 
+# Multimodal Offline RAG System
+
+두산로보틱스 협동로봇 매뉴얼을 대상으로 텍스트 답변과 관련 도면 이미지를 함께 제공하는 오프라인 멀티모달 RAG 연구 프로젝트입니다.
+
+## Folder Structure
+
+```text
+src/                  Python 실행 코드
+data/raw/             원본 PDF 매뉴얼
+data/processed/       텍스트 청크, 이미지 메타데이터, 정제 이미지
+data/evaluation/      평가용 CSV/XLSX 데이터셋
+data/vector_db/       ChromaDB 벡터 DB
+models/               로컬 모델 및 Hugging Face 캐시
+runtime/              Ollama 실행 파일, Ollama 모델, 설치 파일
+docs/                 연구 메모와 프로젝트 문서
+```
+
+## Preprocessing
+
+```powershell
+.\.venv\Scripts\python.exe src\unified_extractor.py
+.\.venv\Scripts\python.exe src\text_filter.py
+.\.venv\Scripts\python.exe src\embedding_text_image.py
+```
+
+## Run App
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_ollama.ps1
+.\.venv\Scripts\python.exe -m streamlit run src\app_gemma.py
+```

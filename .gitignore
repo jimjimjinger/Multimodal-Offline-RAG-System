@@ -1,9 +1,25 @@
-siglip_local/
+models/siglip_local/
+models/hf_cache/
+.python/
+.venv/
+runtime/ollama/
+runtime/ollama_home/
+runtime/ollama_models/
+runtime/downloads/
 __pycache__/
 *.py[cod]
 .env
-.venv/
 venv/
 *.log
 .DS_Store
 Thumbs.db
+
+# Legacy local paths
+siglip_local/
+hf_cache/
+ollama/
+ollama_home/
+ollama_models/
+OllamaSetup.exe
+ollama-windows-amd64.zip
+python-*-amd64.exe
