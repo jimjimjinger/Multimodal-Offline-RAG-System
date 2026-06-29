@@ -17,6 +17,7 @@ FINAL_IMAGES_DIR = PROCESSED_DATA_DIR / "final_refined_data"
 TEXT_CHUNKS_PATH = PROCESSED_DATA_DIR / "text_chunks.json"
 FINAL_PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "final_processing_report.json"
 PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "processing_report.json"
+TEXT_IMAGE_MAPPING_REPORT_PATH = PROCESSED_DATA_DIR / "text_image_mapping_report.json"
 
 A_SERIES_PDF = RAW_DATA_DIR / "A-Series.pdf"
 

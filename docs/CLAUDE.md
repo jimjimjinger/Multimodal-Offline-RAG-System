@@ -16,9 +16,9 @@
 |---|---|
 | 텍스트 임베딩 | BAAI/bge-m3 (SentenceTransformers) |
 | 벡터 DB | ChromaDB (로컬 PersistentClient) |
-| LLM | Qwen2.5:1.5b / Gemma2:2b (Ollama, 완전 오프라인) |
+| LLM | qwen2.5:7b / gemma2:9b / llama3.1:8b (Ollama, 완전 오프라인) |
 | 이미지 필터 | SigLIP (`models/siglip_local/` 로컬 저장) |
-| UI | Streamlit (`src/app.py`, `src/app_gemma.py`) |
+| UI | Streamlit (`src/app_qwen.py`, `src/app_gemma.py`, `src/app_llama.py`) |
 
 ## 파이프라인 구조
 ```
@@ -28,14 +28,17 @@ data/raw/*.pdf
   → scripts/download_siglip.py # SigLIP 로컬 저장
   → SigLIP 필터링              # 의미 없는 이미지 제거
   → data/processed/final_refined_data/ # 정제된 이미지 보관
-  → src/embedding_text_image.py        # BGE-M3 임베딩 + 2D 공간거리 기반 텍스트↔이미지 매핑 → ChromaDB 저장
-  → src/app.py 또는 src/app_gemma.py   # Streamlit UI (Top-5 검색 + 답변 + 이미지 렌더링)
+  → src/embedding_text_image.py        # 텍스트 컬렉션 + 이미지 전용 컬렉션 생성
+  → src/app_qwen.py / src/app_gemma.py / src/app_llama.py   # Streamlit UI (텍스트 Top-5 답변 + 이미지 Top-20 렌더링)
 ```
 
 ## 주요 파일 목록
 | 파일/폴더 | 설명 |
 |---|---|
-| `src/app.py`, `src/app_gemma.py` | Streamlit 앱 |
+| `src/app_qwen.py`, `src/app_gemma.py`, `src/app_llama.py` | Streamlit 앱 |
+| `src/app_runtime.py` | 세 LLM 앱이 공유하는 Streamlit 실행 로직 |
+| `src/rag_search.py` | 텍스트 검색과 이미지 확장 검색 공통 로직 |
+| `src/image_index.py` | 이미지 전용 ChromaDB 컬렉션 생성 로직 |
 | `src/unified_extractor.py` | PDF에서 이미지 추출 및 SigLIP 필터링 |
 | `src/embedding_text_image.py` | 임베딩 + ChromaDB 적재 |
 | `src/text_filter.py` | 텍스트 정제 및 청킹 |
@@ -49,6 +52,6 @@ data/raw/*.pdf
 
 ## 핵심 설계 원칙
 1. **완전 오프라인 동작**: 인터넷 없이도 실행 가능 (Ollama + 로컬 모델)
-2. **경량화 우선**: 1.5B 수준 LLM, 로컬 임베딩, 최소 의존성
+2. **경량화 우선**: 4-bit 양자화 7B~9B급 LLM, 로컬 임베딩, 최소 의존성
 3. **멀티모달 응답**: 텍스트 답변 + 연관 기술 도식(이미지) 동시 제공
-4. **정밀 매핑**: 2D 공간거리 + 캡션 키워드 규칙으로 텍스트-이미지 연결
+4. **정밀 매핑**: bbox + SigLIP similarity + 이미지 전용 검색 컬렉션으로 텍스트-이미지 연결
