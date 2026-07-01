@@ -29,7 +29,7 @@ data/raw/*.pdf
   → SigLIP 필터링              # 의미 없는 이미지 제거
   → data/processed/final_refined_data/ # 정제된 이미지 보관
   → src/embedding_text_image.py        # 텍스트 컬렉션 + 이미지 전용 컬렉션 생성
-  → src/app_qwen.py / src/app_gemma.py / src/app_llama.py   # Streamlit UI (텍스트 Top-5 답변 + 이미지 Top-20 렌더링)
+  → src/app_qwen.py / src/app_gemma.py / src/app_llama.py   # Streamlit UI (텍스트 Top-5 답변 + 이미지 Top-10 렌더링)
 ```
 
 ## 주요 파일 목록

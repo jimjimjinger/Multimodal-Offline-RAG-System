@@ -26,6 +26,8 @@ from rag_search import open_rag_collections, retrieve_multimodal  # noqa: E402
 TESTSET_PATH = EVALUATION_DATA_DIR / "testset.xlsx"
 RAW_OUTPUT_PATH = EVALUATION_DATA_DIR / "model_eval_raw.csv"
 SUMMARY_OUTPUT_PATH = EVALUATION_DATA_DIR / "model_eval_summary.csv"
+IMAGE_O_LIMIT = 5
+IMAGE_PARTIAL_LIMIT = 10
 
 MODELS = [
     ("qwen", "qwen2.5:7b", "Qwen 2.5 7B Q4"),
@@ -253,6 +255,13 @@ def text_grade(qid, answer):
     return grade, matched, total
 
 
+def image_grade(expected_image, retrieved_images):
+    for rank, image in enumerate(retrieved_images[:IMAGE_PARTIAL_LIMIT], start=1):
+        if image.get("name") == expected_image:
+            return "O" if rank <= IMAGE_O_LIMIT else "\u25b3"
+    return "X"
+
+
 def final_grade(text, image):
     if text == "O" and image == "O":
         return "O"
@@ -349,8 +358,7 @@ def main():
             except Exception as exc:
                 answer = f"ERROR: {exc}"
 
-            image_names = [img["name"] for img in retrieval["images"]]
-            image = "O" if record["expected_image"] in image_names else "X"
+            image = image_grade(record["expected_image"], retrieval["images"])
             text, matched, total = text_grade(record["qid"], answer)
             final = final_grade(text, image)
             elapsed = round(time.time() - start, 2)

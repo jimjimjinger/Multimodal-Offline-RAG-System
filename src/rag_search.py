@@ -11,8 +11,12 @@ TEXT_COLLECTION_NAME = "doosan_manual_collection"
 ANSWER_TOP_K = 5
 IMAGE_TEXT_TOP_K = 60
 IMAGE_COLLECTION_TOP_K = 80
-IMAGE_RESULTS_LIMIT = 20
+IMAGE_RESULTS_LIMIT = 10
 TEXT_RANK_SCORE_WINDOW = 30
+STAGE_IMAGE_TOP_K = 80
+STAGE_RANK_SCORE_WINDOW = 80
+STAGE_CONTEXT_WEIGHT = 0.10
+STAGE_BASE_RANK_WINDOW = 25
 
 
 def get_collection_or_none(client, name):
@@ -81,6 +85,11 @@ def _candidate(candidates, file_name, image_path):
             "page_score": 0.0,
             "mapping_score": 0.0,
             "siglip_score": 0.0,
+            "stage_query_score": 0.0,
+            "stage_rank_score": 0.0,
+            "stage_token_score": 0.0,
+            "stage_score": 0.0,
+            "base_score": 0.0,
             "score": 0.0,
         }
     return candidates[key]
@@ -159,7 +168,13 @@ def _add_page_neighbor_candidates(candidates, metas):
                 item["sources"].append(f"page_neighbor_{rank}")
 
 
-def _add_image_collection_candidates(candidates, result):
+def _add_image_collection_candidates(
+    candidates,
+    result,
+    source_prefix="image_db",
+    score_key="image_search_score",
+    rank_score_key=None,
+):
     metas = query_first(result, "metadatas")
     distances = query_first(result, "distances")
     documents = query_first(result, "documents")
@@ -182,24 +197,118 @@ def _add_image_collection_candidates(candidates, result):
         item["heading"] = next((heading for heading in headings if heading), item["heading"])
         item["pages"] = str(pages) if pages else item["pages"]
         item["page"] = meta.get("page", item["page"])
-        item["image_search_score"] = max(item["image_search_score"], distance_to_score(distance))
+        item[score_key] = max(item[score_key], distance_to_score(distance))
+        if rank_score_key:
+            rank_score = max(0.0, 1.0 - ((rank - 1) / max(1, STAGE_RANK_SCORE_WINDOW)))
+            item[rank_score_key] = max(item[rank_score_key], rank_score)
         item["siglip_score"] = max(item["siglip_score"], to_float(meta.get("diagram_siglip_score")))
-        item["sources"].append(f"image_db_{rank}")
+        item["sources"].append(f"{source_prefix}_{rank}")
         item["document_preview"] = doc[:240]
 
 
-def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT):
-    ranked = []
+def _stage_terms(stage_label):
+    if not stage_label:
+        return []
+
+    normalized = str(stage_label).replace("/", " ").replace("-", " ")
+    terms = []
+    for term in re.findall(r"[0-9A-Za-z가-힣]+", normalized):
+        term = term.lower().strip()
+        if len(term) < 2 and term not in {"x", "y", "z"}:
+            continue
+        terms.append(term)
+
+    lower_stage = str(stage_label).lower()
+    if "i/o" in lower_stage:
+        terms.extend(["i/o", "io"])
+
+    unique_terms = []
+    for term in terms:
+        if term not in unique_terms:
+            unique_terms.append(term)
+    return unique_terms
+
+
+def _candidate_stage_text(item):
+    return " ".join(
+        str(value or "")
+        for value in [
+            item.get("name"),
+            item.get("heading"),
+            item.get("pages"),
+            item.get("page"),
+            item.get("document_preview"),
+        ]
+    ).lower()
+
+
+def _apply_stage_context(candidates, stage_label):
+    terms = _stage_terms(stage_label)
+    if not terms:
+        return
+
     for item in candidates.values():
-        source_bonus = min(0.08, 0.02 * len(set(item["sources"])))
-        score = (
-            0.42 * item["image_search_score"]
-            + 0.18 * item["text_rank_score"]
-            + 0.28 * item["page_score"]
-            + 0.09 * item["mapping_score"]
-            + 0.03 * item["siglip_score"]
-            + source_bonus
+        candidate_text = _candidate_stage_text(item)
+        matched = sum(1 for term in terms if term in candidate_text)
+        token_score = matched / len(terms)
+        item["stage_token_score"] = max(item["stage_token_score"], token_score)
+        item["stage_score"] = max(
+            item["stage_query_score"],
+            item["stage_rank_score"],
+            item["stage_token_score"],
         )
+
+
+def _source_bonus(item, include_stage_sources=True):
+    sources = set(item["sources"])
+    if not include_stage_sources:
+        sources = {source for source in sources if not source.startswith("stage_")}
+    return min(0.08, 0.02 * len(sources))
+
+
+def _base_image_score(item, include_stage_sources=True):
+    source_bonus = _source_bonus(item, include_stage_sources=include_stage_sources)
+    return (
+        0.42 * item["image_search_score"]
+        + 0.18 * item["text_rank_score"]
+        + 0.28 * item["page_score"]
+        + 0.09 * item["mapping_score"]
+        + 0.03 * item["siglip_score"]
+        + source_bonus
+    )
+
+
+def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_context=False):
+    candidate_items = list(candidates.values())
+    for item in candidate_items:
+        base_score = _base_image_score(item, include_stage_sources=not use_stage_context)
+        item["base_score"] = round(base_score, 4)
+        item["base_rank"] = 0
+
+    base_ranked = sorted(
+        candidate_items,
+        key=lambda item: (
+            item["base_score"],
+            item["image_search_score"],
+            item["page_score"],
+            item["text_rank_score"],
+            item["mapping_score"],
+        ),
+        reverse=True,
+    )
+    for base_rank, item in enumerate(base_ranked, start=1):
+        item["base_rank"] = base_rank
+
+    ranked = []
+    for item in candidate_items:
+        if use_stage_context:
+            if item["base_rank"] <= STAGE_BASE_RANK_WINDOW:
+                rank_factor = 1.0 - ((item["base_rank"] - 1) / max(1, STAGE_BASE_RANK_WINDOW))
+            else:
+                rank_factor = 0.0
+            score = item["base_score"] + (STAGE_CONTEXT_WEIGHT * item["stage_score"] * rank_factor)
+        else:
+            score = item["base_score"]
         item["score"] = round(score, 4)
         item["rank"] = 0
         ranked.append(item)
@@ -207,6 +316,7 @@ def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT):
     ranked.sort(
         key=lambda item: (
             item["score"],
+            item["stage_score"] if use_stage_context else 0.0,
             item["image_search_score"],
             item["page_score"],
             item["text_rank_score"],
@@ -229,10 +339,12 @@ def retrieve_multimodal(
     image_text_top_k=IMAGE_TEXT_TOP_K,
     image_collection_top_k=IMAGE_COLLECTION_TOP_K,
     image_results_limit=IMAGE_RESULTS_LIMIT,
+    stage_label=None,
 ):
     query_embedding = embedder.encode(question).tolist()
 
     answer_result = text_collection.query(query_embeddings=[query_embedding], n_results=answer_top_k)
+    answer_ids = query_first(answer_result, "ids")
     answer_docs = query_first(answer_result, "documents")
     answer_metas = query_first(answer_result, "metadatas")
 
@@ -250,12 +362,37 @@ def retrieve_multimodal(
         )
         _add_image_collection_candidates(candidates, image_result)
 
-    images = rank_image_candidates(candidates, limit=image_results_limit)
+    use_stage_context = bool(stage_label)
+    if use_stage_context:
+        stage_query = f"{stage_label} {question}"
+        stage_embedding = embedder.encode(stage_query).tolist()
+
+        if image_collection is not None:
+            stage_image_result = image_collection.query(
+                query_embeddings=[stage_embedding],
+                n_results=STAGE_IMAGE_TOP_K,
+            )
+            _add_image_collection_candidates(
+                candidates,
+                stage_image_result,
+                source_prefix="stage_image_db",
+                score_key="stage_query_score",
+                rank_score_key="stage_rank_score",
+            )
+        _apply_stage_context(candidates, stage_label)
+
+    images = rank_image_candidates(
+        candidates,
+        limit=image_results_limit,
+        use_stage_context=use_stage_context,
+    )
     return {
         "query_embedding": query_embedding,
+        "answer_ids": answer_ids,
         "answer_docs": answer_docs,
         "answer_metas": answer_metas,
         "context": make_context(answer_docs, answer_metas),
         "images": images,
         "image_collection_available": image_collection is not None,
+        "stage_context_used": use_stage_context,
     }
