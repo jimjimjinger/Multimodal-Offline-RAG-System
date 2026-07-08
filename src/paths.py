@@ -19,6 +19,15 @@ FINAL_PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "final_processing_report.jso
 PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "processing_report.json"
 TEXT_IMAGE_MAPPING_REPORT_PATH = PROCESSED_DATA_DIR / "text_image_mapping_report.json"
 
+SCIE_DIR = next(
+    (path for path in PROJECT_ROOT.iterdir() if path.is_dir() and path.name.startswith("SCIE")),
+    PROJECT_ROOT / "SCIE용",
+)
+SCIE_DATA_DIR = SCIE_DIR / "data"
+SCIE_EXCEL_DIR = SCIE_DIR / "excel"
+STAGE_CONTEXT_MAP_PATH = SCIE_DATA_DIR / "09_stage_context_map.csv"
+STAGE_CONTEXT_MAP_MANUAL_PATH = SCIE_DATA_DIR / "11_stage_context_map_manual.csv"
+
 A_SERIES_PDF = RAW_DATA_DIR / "A-Series.pdf"
 
 RUNTIME_DIR = PROJECT_ROOT / "runtime"

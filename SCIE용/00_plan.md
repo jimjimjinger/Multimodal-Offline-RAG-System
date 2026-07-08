@@ -29,6 +29,17 @@
 | 평가 지표 | 06_metrics.md | 진행 완료 |
 | 파일럿 결과 | 07_pilot_results.md | 진행 완료 |
 | 상황 인지형 G4 개선 설계 | 08_context_rerank_results.md | 작성 완료 |
+| G1/G2/G3/G4 비교 결과 | 15_g1_g2_g3_g4_results.md | 진행 완료 |
+| G4 개선/실패 사례 분석 | 16_g4_case_analysis.md | 진행 완료 |
+| 응답 품질 평가 기준 | 17_response_quality_eval_criteria.md, excel/17_response_quality_eval_template.xlsx | 진행 완료 |
+| 논문용 최종 정리본 | 18_paper_ready_summary.md | 작성 완료 |
+| 논문 초안 | 19_paper_draft.md | 1차 작성 완료 |
+| 참고문헌 후보 정리 | 20_reference_candidates.md | 작성 완료 |
+| 영문화 전 보강 체크리스트 | 21_pre_english_checklist.md | 작성 완료 |
+| 응답 품질 평가 결과 | 22_response_quality_eval_results.md, excel/22_response_quality_eval_results.xlsx | 자동 1차 평가 완료 |
+| G4 단계 자동 분류 | 29_stage_classifier_results.md, excel/29_stage_classifier_eval.xlsx | 진행 완료 |
+| 자동분류 기반 G4 검색 결과 | 30_g4_auto_results.md, excel/30_g4_auto_retrieval_results.xlsx | 진행 완료 |
+| 최종 산출물 폴더 | 산출물/00_산출물_목록.md | 정리 완료 |
 
 ## 폴더 구조
 
@@ -37,3 +48,4 @@
 | `data/` | 코드 실행과 평가에 사용하는 CSV 원본 데이터 |
 | `excel/` | 사람이 확인하기 쉬운 XLSX 파일 |
 | 루트 | 보고서와 정리 문서 Markdown 파일 |
+| `산출물/` | 논문/보고에 직접 사용할 최종 산출물 모음 |

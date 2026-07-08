@@ -13,6 +13,7 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
+참고문헌/
 
 # Legacy local paths
 siglip_local/

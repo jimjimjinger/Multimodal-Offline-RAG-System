@@ -4,14 +4,22 @@ import streamlit as st
 from PIL import Image
 from sentence_transformers import SentenceTransformer
 
-from paths import VECTOR_DB_DIR, configure_model_cache
+from paths import STAGE_CONTEXT_MAP_MANUAL_PATH, VECTOR_DB_DIR, configure_model_cache
 from rag_search import (
     ANSWER_TOP_K,
     IMAGE_COLLECTION_TOP_K,
     IMAGE_RESULTS_LIMIT,
     IMAGE_TEXT_TOP_K,
+    load_stage_context_map,
     open_rag_collections,
     retrieve_multimodal,
+)
+from stage_classifier import (
+    DEFAULT_STAGE_MIN_MARGIN,
+    DEFAULT_STAGE_MIN_SCORE,
+    build_stage_profiles,
+    classify_stage,
+    encode_stage_profiles,
 )
 
 
@@ -22,6 +30,13 @@ def load_resources():
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
     text_collection, image_collection = open_rag_collections(client)
     return embedder, text_collection, image_collection
+
+
+@st.cache_resource
+def load_stage_classifier_resources(_embedder):
+    stage_profiles = build_stage_profiles(STAGE_CONTEXT_MAP_MANUAL_PATH)
+    stage_profile_embeddings = encode_stage_profiles(_embedder, stage_profiles)
+    return stage_profiles, stage_profile_embeddings
 
 
 def generate_answer(model_id, question, context):
@@ -74,8 +89,64 @@ def render_sidebar(model_id, model_label, image_collection):
         st.write(f"**Image search:** text Top-{IMAGE_TEXT_TOP_K} + image DB Top-{IMAGE_COLLECTION_TOP_K}")
         st.write(f"**Displayed images:** Top-{IMAGE_RESULTS_LIMIT}")
         st.write(f"**Image DB:** {'enabled' if image_collection is not None else 'not built'}")
+        stage_mode = st.radio(
+            "G4 실습 단계 모드",
+            ["자동 분류", "수동 선택", "G4 사용 안 함"],
+            horizontal=False,
+        )
+        selected_stage = None
+        if stage_mode == "수동 선택":
+            stage_options = sorted(load_stage_context_map(STAGE_CONTEXT_MAP_MANUAL_PATH).keys())
+            selected_stage = st.selectbox("G4 실습 단계", stage_options)
+        if stage_mode == "자동 분류":
+            st.caption(
+                "질문과 실습 단계 profile을 비교해 G4 단계를 자동 추정합니다. "
+                f"기준 점수: {DEFAULT_STAGE_MIN_SCORE:.2f}, "
+                f"최소 margin: {DEFAULT_STAGE_MIN_MARGIN:.2f}"
+            )
         st.markdown("---")
         st.write("터미널에서 `powershell -ExecutionPolicy Bypass -File .\\start_ollama.ps1`가 실행 중이어야 합니다.")
+    return {
+        "mode": stage_mode,
+        "manual_stage": selected_stage,
+    }
+
+
+def resolve_stage_label(query, stage_settings, embedder, stage_profiles, stage_profile_embeddings):
+    if stage_settings["mode"] == "G4 사용 안 함":
+        return None, None
+
+    if stage_settings["mode"] == "수동 선택":
+        return stage_settings["manual_stage"], None
+
+    classification = classify_stage(
+        question=query,
+        embedder=embedder,
+        profiles=stage_profiles,
+        profile_embeddings=stage_profile_embeddings,
+    )
+    return classification["stage_label"], classification
+
+
+def render_stage_classification(classification):
+    if not classification:
+        return
+
+    if classification["used"]:
+        st.info(
+            f"자동 추정 실습 단계: **{classification['stage_label']}** "
+            f"(score {classification['score']:.3f}, margin {classification['margin']:.3f})"
+        )
+    else:
+        st.warning(
+            f"실습 단계 자동 분류가 낮은 신뢰도 또는 애매한 후보로 판단되어 G4를 적용하지 않았습니다. "
+            f"최상위 후보: {classification['predicted_stage']} "
+            f"(score {classification['score']:.3f}, margin {classification['margin']:.3f})"
+        )
+
+    with st.expander("실습 단계 자동 분류 Top 후보"):
+        for rank, candidate in enumerate(classification["top_candidates"], start=1):
+            st.write(f"{rank}. {candidate['stage']} - score {candidate['score']:.3f}")
 
 
 def render_answer_sources(retrieved_docs, retrieved_metas):
@@ -106,7 +177,7 @@ def render_images(images):
 def run_app(model_id, model_label, page_title):
     st.set_page_config(layout="wide", page_title=page_title)
     embedder, text_collection, image_collection = load_resources()
-    render_sidebar(model_id, model_label, image_collection)
+    stage_settings = render_sidebar(model_id, model_label, image_collection)
 
     st.header("두산로보틱스 지능형 Q&A 시스템")
     st.caption(
@@ -118,6 +189,20 @@ def run_app(model_id, model_label, page_title):
     if not query:
         return
 
+    if stage_settings["mode"] == "자동 분류":
+        stage_profiles, stage_profile_embeddings = load_stage_classifier_resources(embedder)
+    else:
+        stage_profiles, stage_profile_embeddings = [], []
+
+    stage_label, classification = resolve_stage_label(
+        query,
+        stage_settings,
+        embedder,
+        stage_profiles,
+        stage_profile_embeddings,
+    )
+    render_stage_classification(classification)
+
     retrieval = retrieve_multimodal(
         question=query,
         embedder=embedder,
@@ -127,6 +212,8 @@ def run_app(model_id, model_label, page_title):
         image_text_top_k=IMAGE_TEXT_TOP_K,
         image_collection_top_k=IMAGE_COLLECTION_TOP_K,
         image_results_limit=IMAGE_RESULTS_LIMIT,
+        stage_label=stage_label,
+        stage_context_map_path=STAGE_CONTEXT_MAP_MANUAL_PATH,
     )
 
     if not retrieval["answer_docs"]:
