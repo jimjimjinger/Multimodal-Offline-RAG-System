@@ -1,4 +1,4 @@
-﻿질문 번호,구분,질문,정답 실습 단계,예측 실습 단계,G4 적용 단계,분류 점수,분류 margin,자동 G4 적용,정답 텍스트,G3 텍스트 정답 순위,G4-oracle 텍스트 정답 순위,G4 텍스트 정답 순위,G4 텍스트 평가,G4 텍스트 평가 근거,정답 이미지,G3 이미지 정답 순위,G4-oracle 이미지 정답 순위,G4 이미지 정답 순위,G4 이미지 평가,G4 검색 이미지 Top-10
+﻿질문 번호,구분,질문,정답 실습 단계,예측 실습 단계,G4 적용 단계,분류 점수,분류 margin,G4 적용,정답 텍스트,G3 텍스트 정답 순위,G4-oracle 텍스트 정답 순위,G4 텍스트 정답 순위,G4 텍스트 평가,G4 텍스트 평가 근거,정답 이미지,G3 이미지 정답 순위,G4-oracle 이미지 정답 순위,G4 이미지 정답 순위,G4 이미지 평가,G4 검색 이미지 Top-10
 Q01,기존,로봇 케이블을 임의로 개조하거나 연장할 경우 발생할 수 있는 가장 큰 위험 두 가지는 무엇입니까?,안전/전원/케이블,설치/케이블 노이즈 대책,,0.5419,0.0279,X,화재가 발생하거나 컨트롤러가 고장 날 수 있음,2,2,2,O,"keyword:발생,컨트롤러,고장",page_403_img_0_0.jpeg,,6,,X,"1. page_104_img_0_0.jpeg | score=0.716 | stage=0.000 | 
 2. page_116_img_0_0.jpeg | score=0.658 | stage=0.000 | 
 3. page_84_img_0_0.jpeg | score=0.635 | stage=0.000 | 
@@ -113,12 +113,12 @@ Q12,기존,전원이 꺼진 상태나 비상시 조작기 각 관절의 브레�
 2. page_179_img_1_0.jpeg | score=1.297 | stage=0.698 | page=1.00; keyword=backdrive,recovery; section=backdrive
 3. page_181_img_0_0.jpeg | score=0.986 | stage=0.614 | page=1.00; keyword=recovery
 4. page_89_img_1_0.jpeg | score=0.899 | stage=0.341 | 
-5. page_177_img_1_0.jpeg | score=0.862 | stage=0.580 | page=1.00
+5. page_177_img_1_0.jpeg | score=0.864 | stage=0.580 | page=1.00
 6. page_125_img_0_0.jpeg | score=0.859 | stage=0.328 | 
 7. page_89_img_0_0.jpeg | score=0.840 | stage=0.337 | 
 8. page_24_img_0_0.jpeg | score=0.725 | stage=0.289 | keyword=emergency
-9. page_169_img_2_0.jpeg | score=0.709 | stage=0.698 | page=1.00; keyword=backdrive,recovery; section=backdrive
-10. page_174_img_1_0.jpeg | score=0.699 | stage=0.580 | page=1.00"
+9. page_169_img_2_0.jpeg | score=0.712 | stage=0.698 | page=1.00; keyword=backdrive,recovery; section=backdrive
+10. page_174_img_1_0.jpeg | score=0.701 | stage=0.580 | page=1.00"
 Q13,기존,티치 펜던트의 전원을 강제로 종료하는 물리적 버튼 조작법은 무엇입니까?,티치 펜던트/전원 조작,티치 펜던트/전원 조작,티치 펜던트/전원 조작,0.6817,0.0619,O,전원 버튼을 4초 이상 길게 누름,1,1,1,O,"keyword:전원,버튼을,버튼,길게; semantic_rank:4",page_24_img_0_0.jpeg,5,8,8,△,"1. page_94_img_0_0.jpeg | score=1.302 | stage=0.580 | page=1.00
 2. page_95_img_0_0.jpeg | score=1.235 | stage=0.580 | page=1.00
 3. page_96_img_0_0.jpeg | score=1.207 | stage=0.580 | page=1.00
@@ -299,7 +299,7 @@ Q30,기존,전원 입력 시 극성이 잘못 결선되었을 때 컨트롤러 �
 8. page_403_img_0_0.jpeg | score=0.841 | stage=0.630 | page=1.00; section=cs-12p
 9. page_138_img_0_0.jpeg | score=0.840 | stage=0.341 | 
 10. page_163_img_0_0.jpeg | score=0.833 | stage=0.230 | "
-Q31,기존,티치 펜던트에 위치한 USB 포트의 주된 용도는 무엇입니까?,티치 펜던트/USB 데이터 관리,티치 펜던트/USB 데이터 관리,티치 펜던트/USB 데이터 관리,0.6251,0.0946,O,로봇 로그 저장매체 백업 및 태스크 내보내기/가져오기,1,1,1,O,"page; keyword:로봇,로그,저장매체,태스크,내보내기",page_103_img_0_0.jpeg,,3,3,O,"1. page_102_img_0_0.jpeg | score=1.251 | stage=0.580 | page=1.00
+Q31,기존,티치 펜던트에 위치한 USB 포트의 주된 용도는 무엇입니까?,티치 펜던트/USB 데이터 관리,티치 펜던트/USB 데이터 관리,티치 펜던트/USB 데이터 관리,0.6251,0.0946,O,로봇 로그 저장매체 백업 및 태스크 내보내기/가져오기,1,1,1,O,"page; keyword:로봇,로그,저장매체,태스크,내보내기; semantic_rank:6",page_103_img_0_0.jpeg,,3,3,O,"1. page_102_img_0_0.jpeg | score=1.251 | stage=0.580 | page=1.00
 2. page_104_img_0_0.jpeg | score=1.167 | stage=0.580 | page=1.00
 3. page_103_img_0_0.jpeg | score=1.090 | stage=0.580 | page=1.00
 4. page_163_img_0_0.jpeg | score=0.908 | stage=0.346 | 
@@ -327,7 +327,7 @@ Q33,기존,사용자 계정 관리에서 관리자(Supervisor) 권한으로 접�
 6. page_330_img_0_0.jpeg | score=0.764 | stage=0.236 | 
 7. page_343_img_0_0.jpeg | score=0.745 | stage=0.651 | page=1.00; keyword=account; section=account
 8. page_147_img_0_0.jpeg | score=0.730 | stage=0.293 | 
-9. page_354_img_0_0.jpeg | score=0.680 | stage=0.580 | page=1.00
+9. page_354_img_0_0.jpeg | score=0.682 | stage=0.580 | page=1.00
 10. page_349_img_0_0.jpeg | score=0.647 | stage=0.647 | page=1.00; keyword=lock,setting"
 Q34,기존,로봇을 운반이나 포장하기 위해 안전 복구 모드에서 사용할 수 있는 전용 기능의 이름은 무엇입니까?,안전 복구/패키징,안전 복구/Recovery,안전 복구/Recovery,0.5431,0.0418,O,패키징 모드,1,1,1,O,"keyword:패키징,모드; semantic_rank:5",page_184_img_0_0.jpeg,2,1,2,O,"1. page_181_img_0_0.jpeg | score=1.311 | stage=0.689 | page=1.00; keyword=recovery; section=recovery
 2. page_184_img_0_0.jpeg | score=1.199 | stage=0.580 | page=1.00
@@ -610,14 +610,14 @@ Q61,추가,Robot Settings 화면의 더보기 버튼은 어떤 파일 작업을 
 9. page_309_img_1_0.jpeg | score=0.696 | stage=0.000 | 
 10. page_323_img_0_0.jpeg | score=0.694 | stage=0.000 | "
 Q62,추가,Cockpit 설정 화면에서 1번 버튼에 수행할 기능을 지정하는 항목은 무엇입니까?,직접교시/Cockpit 설정,직접교시/Cockpit 설정,직접교시/Cockpit 설정,0.6334,0.1321,O,1 버튼 설정 항목에서 기능을 선택함,1,1,1,O,"page; keyword:버튼,항목,기능을,기능; semantic_rank:15",page_196_img_0_0.jpeg,7,1,1,O,"1. page_196_img_0_0.jpeg | score=1.059 | stage=0.614 | page=1.00; keyword=setting
-2. page_195_img_2_0.jpeg | score=0.958 | stage=0.614 | page=1.00; keyword=setting
-3. page_192_img_0_0.jpeg | score=0.937 | stage=0.614 | page=1.00; keyword=setting
-4. page_190_img_1_0.jpeg | score=0.902 | stage=0.614 | page=1.00; keyword=setting
-5. page_190_img_0_0.jpeg | score=0.874 | stage=0.614 | page=1.00; keyword=setting
+2. page_195_img_2_0.jpeg | score=0.956 | stage=0.614 | page=1.00; keyword=setting
+3. page_192_img_0_0.jpeg | score=0.934 | stage=0.614 | page=1.00; keyword=setting
+4. page_190_img_1_0.jpeg | score=0.900 | stage=0.614 | page=1.00; keyword=setting
+5. page_190_img_0_0.jpeg | score=0.872 | stage=0.614 | page=1.00; keyword=setting
 6. page_220_img_0_0.jpeg | score=0.796 | stage=0.226 | keyword=setting
 7. page_224_img_0_0.jpeg | score=0.771 | stage=0.227 | keyword=setting
-8. page_195_img_0_0.jpeg | score=0.749 | stage=0.614 | page=1.00; keyword=setting
-9. page_376_img_0_0.jpeg | score=0.744 | stage=0.249 | 
+8. page_195_img_0_0.jpeg | score=0.746 | stage=0.614 | page=1.00; keyword=setting
+9. page_376_img_0_0.jpeg | score=0.742 | stage=0.245 | 
 10. page_235_img_1_0.jpeg | score=0.741 | stage=0.225 | keyword=setting"
 Q63,추가,툴 무게를 설정하기 위해 Robot Parameters에서 선택해야 하는 메뉴 경로는 무엇입니까?,툴 설정/Tool Weight,툴 설정/Tool Weight,툴 설정/Tool Weight,0.6333,0.0933,O,Robot Parameters > Tool Settings > Tool Weight,1,1,1,O,"page; keyword:robot,parameters,tool,settings,weight; semantic_rank:1",page_205_img_1_0.jpeg,1,1,1,O,"1. page_205_img_1_0.jpeg | score=1.379 | stage=0.831 | page=1.00; keyword=tool weight,weight,tool settings; section=tool settings,tool weight
 2. page_192_img_0_0.jpeg | score=1.094 | stage=0.406 | page=0.70

@@ -1,4 +1,4 @@
-# SCIE 논문 준비 폴더
+﻿# SCIE 논문 준비 폴더
 
 ## 목표
 
@@ -36,9 +36,9 @@
 | 논문 초안 | 19_paper_draft.md | 1차 작성 완료 |
 | 참고문헌 후보 정리 | 20_reference_candidates.md | 작성 완료 |
 | 영문화 전 보강 체크리스트 | 21_pre_english_checklist.md | 작성 완료 |
-| 응답 품질 평가 결과 | 22_response_quality_eval_results.md, excel/22_response_quality_eval_results.xlsx | 자동 1차 평가 완료 |
-| G4 단계 자동 분류 | 29_stage_classifier_results.md, excel/29_stage_classifier_eval.xlsx | 진행 완료 |
-| 자동분류 기반 G4 검색 결과 | 30_g4_auto_results.md, excel/30_g4_auto_retrieval_results.xlsx | 진행 완료 |
+| 응답 품질 평가 결과 | 22_response_quality_eval_results.md, excel/22_response_quality_eval_results.xlsx | rubric 기반 1차 평가 완료 |
+| G4 단계 추정 | 29_stage_classifier_results.md, excel/29_stage_classifier_eval.xlsx | 진행 완료 |
+| 단계 추정 기반 G4 검색 결과 | 30_g4_auto_results.md, excel/30_g4_auto_retrieval_results.xlsx | 진행 완료 |
 | 최종 산출물 폴더 | 산출물/00_산출물_목록.md | 정리 완료 |
 
 ## 폴더 구조

@@ -450,7 +450,7 @@ def evaluate_row(row, embedder=None):
     row["평균 점수"] = f"{avg:.2f}"
     row["최종 판정(O/△/X)"] = final_label(avg)
     row["평가 메모"] = (
-        "자동 1차 평가"
+        "rubric 기반 1차 평가"
         f"; 정답키워드일치율={ratio:.2f}"
         f"; 의미유사도={similarity:.2f}"
         f"; 일치키워드={','.join(matched[:8])}"
@@ -503,7 +503,7 @@ def write_report(rows, summary_rows):
         "",
         "## 평가 성격",
         "",
-        "이 결과는 5개 항목 rubric을 이용한 자동 1차 평가이다. 논문 최종본에서는 전문가 또는 연구자의 수동 검토 결과로 보완하는 것이 바람직하다.",
+        "이 결과는 5개 항목 rubric을 이용한 1차 평가이다. 논문 최종본에서는 전문가 또는 연구자의 수동 검토 결과로 보완하는 것이 바람직하다.",
         "",
         "## 진행 현황",
         "",

@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import json
 import math
 import re
@@ -80,7 +80,7 @@ GROUPS = {
     "G1": "키워드 기반 단순 검색",
     "G2": "텍스트 기반 RAG",
     "G3": "멀티모달 RAG",
-    "G4": "자동 단계 분류 기반 상황 인지형 멀티모달 RAG",
+    "G4": "단계 추정 기반 상황 인지형 멀티모달 RAG",
 }
 
 
@@ -370,7 +370,7 @@ def write_report(summary):
         "| G1 | 키워드 기반 단순 검색 | 질문과 매뉴얼 chunk의 단어 일치도를 사용한 baseline |",
         "| G2 | 텍스트 기반 RAG | BGE-M3 텍스트 임베딩으로 텍스트 chunk만 검색 |",
         "| G3 | 멀티모달 RAG | 텍스트 검색, 이미지 전용 검색, page proximity, 텍스트-이미지 매핑 점수 사용 |",
-        "| G4 | 상황 인지형 멀티모달 RAG | 질문에서 실습 단계를 자동 추정한 뒤 G3 후보를 context map 기반으로 재순위화 |",
+        "| G4 | 상황 인지형 멀티모달 RAG | 질문에서 실습 단계를 추정한 뒤 G3 후보를 context map 기반으로 재순위화 |",
         "",
         "## 전체 비교표",
         "",
@@ -395,7 +395,7 @@ def write_report(summary):
             "- G1/G2는 이미지 검색을 수행하지 않기 때문에 Image Recall과 Both 지표는 산출하지 않았다.",
             "- G2와 G3의 텍스트 검색 경로는 동일한 BGE-M3 텍스트 컬렉션을 사용하므로 텍스트 성능은 같은 기준선으로 해석한다.",
             "- G3는 이미지/도식 후보를 추가해 멀티모달 검색 성능을 확인하는 비교군이다.",
-            "- G4는 질문에서 실습 단계를 자동 추정한 뒤, 실습 단계 문맥을 이용해 이미지 후보를 재순위화한 비교군이다.",
+            "- G4는 질문에서 실습 단계를 추정한 뒤, 실습 단계 문맥을 이용해 이미지 후보를 재순위화한 비교군이다.",
             f"- G4는 G3 대비 Image Recall@5가 {percent(g3['image']['recall_at_5'])}에서 {percent(g4['image']['recall_at_5'])}로, Image MRR이 {score(g3['image']['mrr'])}에서 {score(g4['image']['mrr'])}로 개선되었다.",
             "",
             "## 산출 파일",

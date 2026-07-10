@@ -1,4 +1,4 @@
-# 논문 표/그림 캡션 초안
+﻿# 논문 표/그림 캡션 초안
 
 ## 목적
 
@@ -35,7 +35,7 @@ Multimodal retrieval strategy used in G3. Candidate images are ranked by combini
 
 ### Fig. 4. Context-Aware Re-Ranking Strategy in G4
 
-**국문 설명:** G4에서 질문으로부터 실습 단계를 자동 추정하고, 단계별 page range, section heading, keyword로 구성된 context map을 이용해 G3 후보를 재순위화하는 과정을 보여준다.
+**국문 설명:** G4에서 질문으로부터 실습 단계를 추정하고, 단계별 page range, section heading, keyword로 구성된 context map을 이용해 G3 후보를 재순위화하는 과정을 보여준다.
 
 **영문 캡션 초안:**  
 Context-aware re-ranking strategy used in G4. The user query is first matched to a stage context profile, and the retrieved text and image candidates are re-ranked using stage-specific page ranges, section headings, and keywords.
@@ -62,7 +62,7 @@ Representative successful cases of G4 re-ranking. In these cases, the correct im
 
 ### Fig. 7. Representative Failure Cases of G4
 
-**국문 설명:** G4에서도 정답 이미지를 찾지 못한 사례를 보여준다. 자동 단계 분류 실패, 같은 page 내 유사 이미지 구분 실패, 세부 화면 단서 부족을 설명한다.
+**국문 설명:** G4에서도 정답 이미지를 찾지 못한 사례를 보여준다. 질문 기반 단계 추정 실패, 같은 page 내 유사 이미지 구분 실패, 세부 화면 단서 부족을 설명한다.
 
 **영문 캡션 초안:**  
 Representative failure cases of G4. The errors are mainly caused by insufficient image-level discrimination, ambiguous stage classification, or weak visual cues within the same manual page or section.
@@ -109,7 +109,7 @@ Retrieval performance of G1-G4 on the 70-query evaluation set.
 
 ### Table V. Stage Classification Performance for G4
 
-**내용:** Top-1/Top-3/Top-5 stage accuracy, 자동 G4 적용률, 적용 시 Top-1 accuracy.
+**내용:** Top-1/Top-3/Top-5 stage accuracy, G4 적용률, 적용 시 Top-1 accuracy.
 
 **관련 파일:** `SCIE용/29_stage_classifier_results.md`
 

@@ -1,4 +1,4 @@
-# G4 Context Map 구축 절차
+﻿# G4 Context Map 구축 절차
 
 ## 목적
 
@@ -6,7 +6,7 @@
 
 ## Context Map의 역할
 
-G4는 G3에서 생성한 텍스트 및 이미지 후보를 그대로 사용하되, 질문에서 자동 추정한 실습 단계와 관련된 문맥 정보를 이용해 후보 순위를 재조정한다.
+G4는 G3에서 생성한 텍스트 및 이미지 후보를 그대로 사용하되, 질문에서 추정한 실습 단계와 관련된 문맥 정보를 이용해 후보 순위를 재조정한다.
 
 Context map은 다음 정보를 제공한다.
 
@@ -30,7 +30,7 @@ Context map 구축에는 다음 정보만 사용한다.
 | 매뉴얼 section heading | O | 실습 단계와 매뉴얼 구조를 연결하기 위해 사용 |
 | 매뉴얼 page range | O | 관련 텍스트/이미지 후보의 page-level relevance 계산에 사용 |
 | 매뉴얼 본문 keyword | O | 후보 텍스트와 이미지 주변 문맥의 keyword match 계산에 사용 |
-| 실습 단계명 | O | 자동 단계 분류와 context map key로 사용 |
+| 실습 단계명 | O | 질문 기반 단계 추정과 context map key로 사용 |
 | 정답 이미지 파일명 | X | context map 구축과 re-ranking에 사용하지 않음 |
 | 정답 chunk ID | X | context map 구축과 re-ranking에 사용하지 않음 |
 | 질문 번호 | X | 특정 질의에만 맞춘 rule을 만들지 않음 |
@@ -46,7 +46,7 @@ Context map 구축에는 다음 정보만 사용한다.
 6. 구축된 context map을 고정한 뒤 G4 검색 평가를 수행한다.
 7. 평가 후에는 본 실험 결과를 개선하기 위해 context map을 수정하지 않는다.
 
-## G4 자동 단계 분류와의 연결
+## G4 질문 기반 단계 추정과의 연결
 
 G4에서는 사용자가 직접 실습 단계를 선택하지 않는다. 질문이 입력되면 BGE-M3를 이용하여 질문과 각 실습 단계 context profile의 의미 유사도를 계산한다.
 
@@ -88,7 +88,7 @@ G4는 context map을 이용해 텍스트와 이미지 후보를 다음 기준으
 
 1. Context map에는 정답 이미지 파일명과 정답 chunk ID를 포함하지 않는다.
 2. Context map은 평가 결과를 본 뒤 질의별로 수정하지 않는다.
-3. 자동 단계 분류가 낮은 신뢰도라고 판단되면 G4를 강제 적용하지 않고 G3로 fallback한다.
+3. 질문 기반 단계 추정이 낮은 신뢰도라고 판단되면 G4를 강제 적용하지 않고 G3로 fallback한다.
 4. 정답 실습 단계가 주어졌다고 가정한 oracle-stage 결과는 메인 비교군에서 제외하고 참고 상한 성능으로만 해석한다.
 
 ## 논문 Method 문장 초안
@@ -102,7 +102,7 @@ G4는 context map을 이용해 텍스트와 이미지 후보를 다음 기준으
 | `SCIE용/data/11_stage_context_map_manual.csv` | G4 stage context map 원본 CSV |
 | `SCIE용/excel/11_stage_context_map_manual.xlsx` | 사람이 확인하기 쉬운 context map |
 | `SCIE용/11_stage_context_map_manual.md` | context map 요약 문서 |
-| `src/stage_classifier.py` | 자동 실습 단계 분류 코드 |
+| `src/stage_classifier.py` | 질문 기반 실습 단계 추정 코드 |
 | `src/rag_search.py` | G4 re-ranking 코드 |
-| `scripts/evaluate_stage_classifier.py` | 단계 자동 분류 평가 |
-| `scripts/evaluate_scie_g4_auto_retrieval.py` | 자동 단계 분류 기반 G4 검색 평가 |
+| `scripts/evaluate_stage_classifier.py` | 단계 추정 평가 |
+| `scripts/evaluate_scie_g4_auto_retrieval.py` | 단계 추정 기반 G4 검색 평가 |

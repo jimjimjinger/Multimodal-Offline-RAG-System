@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import sys
 from collections import Counter
 from pathlib import Path
@@ -45,7 +45,7 @@ FIELDS = [
     "Top-1 정답",
     "Top-3 정답",
     "Top-5 정답",
-    "자동 G4 적용",
+    "G4 적용",
     "Top-5 후보",
 ]
 
@@ -65,7 +65,7 @@ def write_csv(rows):
 
 def write_xlsx(rows):
     table = [FIELDS] + [[row.get(field, "") for field in FIELDS] for row in rows]
-    write_workbook(table, OUTPUT_XLSX_PATH, "단계 자동 분류 평가")
+    write_workbook(table, OUTPUT_XLSX_PATH, "단계 추정 평가")
 
 
 def yes_no(value):
@@ -88,9 +88,9 @@ def summarize(rows):
     top1 = sum(1 for row in rows if row["Top-1 정답"] == "O")
     top3 = sum(1 for row in rows if row["Top-3 정답"] == "O")
     top5 = sum(1 for row in rows if row["Top-5 정답"] == "O")
-    passed = sum(1 for row in rows if row["자동 G4 적용"] == "O")
+    passed = sum(1 for row in rows if row["G4 적용"] == "O")
     top1_when_passed = sum(
-        1 for row in rows if row["자동 G4 적용"] == "O" and row["Top-1 정답"] == "O"
+        1 for row in rows if row["G4 적용"] == "O" and row["Top-1 정답"] == "O"
     )
     scores = [float(row["최고 점수"]) for row in rows]
     return {
@@ -106,14 +106,14 @@ def summarize(rows):
 
 def write_report(rows, summary):
     errors = [row for row in rows if row["Top-1 정답"] == "X"]
-    low_confidence = [row for row in rows if row["자동 G4 적용"] == "X"]
+    low_confidence = [row for row in rows if row["G4 적용"] == "X"]
     stage_counts = Counter(row["정답 실습 단계"] for row in rows)
     lines = [
-        "# 실습 단계 자동 분류 평가 결과",
+        "# 실습 단계 추정 평가 결과",
         "",
         "## 평가 개요",
         "",
-        "G4 구현을 위해 질문과 실습 단계 context profile 간 BGE-M3 의미 유사도를 비교하여 실습 단계를 자동 추정하였다.",
+        "G4 구현을 위해 질문과 실습 단계 context profile 간 BGE-M3 의미 유사도를 비교하여 실습 단계를 추정하였다.",
         "실습 단계 context profile은 `11_stage_context_map_manual`의 실습 단계명, section keyword, 본문 keyword, 동작/질문 keyword, 근거 문장으로 구성하였다.",
         "",
         "## 전체 결과",
@@ -124,17 +124,17 @@ def write_report(rows, summary):
         f"| Top-1 stage accuracy | {percent(summary['top1'] / summary['total'])} ({summary['top1']}/{summary['total']}) |",
         f"| Top-3 stage accuracy | {percent(summary['top3'] / summary['total'])} ({summary['top3']}/{summary['total']}) |",
         f"| Top-5 stage accuracy | {percent(summary['top5'] / summary['total'])} ({summary['top5']}/{summary['total']}) |",
-        f"| 자동 G4 적용률 | {percent(summary['passed'] / summary['total'])} ({summary['passed']}/{summary['total']}) |",
-        f"| 자동 G4 적용 시 Top-1 accuracy | {percent(summary['top1_when_passed'] / summary['passed']) if summary['passed'] else '0.0%'} ({summary['top1_when_passed']}/{summary['passed']}) |",
+        f"| G4 적용률 | {percent(summary['passed'] / summary['total'])} ({summary['passed']}/{summary['total']}) |",
+        f"| G4 적용 시 Top-1 accuracy | {percent(summary['top1_when_passed'] / summary['passed']) if summary['passed'] else '0.0%'} ({summary['top1_when_passed']}/{summary['passed']}) |",
         f"| 평균 최고 점수 | {summary['avg_score']:.3f} |",
         f"| 적용 기준 점수 | {DEFAULT_STAGE_MIN_SCORE:.2f} |",
         f"| 적용 최소 margin | {DEFAULT_STAGE_MIN_MARGIN:.2f} |",
         "",
         "## 해석",
         "",
-        "- Top-1 accuracy는 완전 자동 G4에 바로 사용할 수 있는 단계 예측 정확도이다.",
-        "- Top-3 accuracy가 높으면 앱에서 자동 추천 후보를 보여주고 사용자가 선택하는 보조 방식에 적합하다.",
-        "- 기준점수 미만이거나 1위와 2위의 점수 차이가 작아 애매한 질문은 G4를 자동 적용하지 않고 G3로 처리하는 것이 안전하다.",
+        "- Top-1 accuracy는 단계 추정 기반 G4에 바로 사용할 수 있는 단계 예측 정확도이다.",
+        "- Top-3 accuracy가 높으면 앱에서 단계 추정 후보를 보여주고 사용자가 선택하는 보조 방식에 적합하다.",
+        "- 기준점수 미만이거나 1위와 2위의 점수 차이가 작아 애매한 질문은 G4를 적용하지 않고 G3로 처리하는 것이 안전하다.",
         "",
         "## Top-1 오분류 사례",
         "",
@@ -218,7 +218,7 @@ def main():
                 "Top-1 정답": yes_no(predicted_stage == expected_stage),
                 "Top-3 정답": yes_no(expected_stage in candidate_stages[:3]),
                 "Top-5 정답": yes_no(expected_stage in candidate_stages[:5]),
-                "자동 G4 적용": yes_no(result["used"]),
+                "G4 적용": yes_no(result["used"]),
                 "Top-5 후보": candidate_text(top_candidates),
             }
         )

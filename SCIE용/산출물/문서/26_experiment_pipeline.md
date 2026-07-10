@@ -1,4 +1,4 @@
-# 실험 파이프라인
+﻿# 실험 파이프라인
 
 ## 목적
 
@@ -11,7 +11,7 @@
 | G1 | Keyword Search | 키워드 기반 단순 검색 기준선 |
 | G2 | Text-only RAG | 텍스트 임베딩 기반 RAG 성능 확인 |
 | G3 | Multimodal RAG | 이미지/도식 정보를 추가했을 때의 검색 성능 확인 |
-| G4 | Context-aware Multimodal RAG | 자동 추정된 실습 단계 context를 추가했을 때의 실제 앱 조건 성능 확인 |
+| G4 | Context-aware Multimodal RAG | 추정된 실습 단계 context를 추가했을 때의 실제 앱 조건 성능 확인 |
 
 ## G1: Keyword Search
 
@@ -59,12 +59,12 @@ G3의 핵심은 텍스트 근거뿐 아니라 이미지/도식 후보를 함께 
 
 ## G4: Context-aware Multimodal RAG
 
-G4는 G3에 실습 단계 자동 분류와 context map 기반 re-ranking을 추가한다.
+G4는 G3에 실습 단계 추정과 context map 기반 re-ranking을 추가한다.
 
 ```text
 질문
   -> 실습 단계 context profile과 BGE-M3 유사도 비교
-  -> 신뢰도가 충분하면 실습 단계 자동 적용
+  -> 신뢰도가 충분하면 실습 단계 적용
   -> 신뢰도가 낮으면 G3 방식으로 fallback
   -> G3 검색 후보 생성
   -> 실습 단계 context map 조회
@@ -89,7 +89,7 @@ G4 context map에는 정답 이미지 파일명이나 정답 chunk ID를 넣지 
 | page proximity | - | - | O | O |
 | 텍스트-이미지 매핑 점수 | - | - | O | O |
 | SigLIP similarity 신호 | - | - | O | O |
-| 실습 단계 자동 분류 | - | - | - | O |
+| 실습 단계 추정 | - | - | - | O |
 | 실습 단계 context map | - | - | - | O |
 | context-aware re-ranking | - | - | - | O |
 | 로컬 LLM 답변 생성 | - | O | O | O |
@@ -107,5 +107,5 @@ G4 context map에는 정답 이미지 파일명이나 정답 chunk ID를 넣지 
 
 - G1 대비 G2는 텍스트 검색의 Top-1 및 MRR을 개선한다.
 - G3는 이미지 검색을 가능하게 하지만, Top-1 이미지 순위는 아직 낮다.
-- G4는 자동 단계 분류를 사용해 실제 앱 조건에서도 G3 대비 Image Recall@5, Image Recall@10, Image MRR을 개선한다.
+- G4는 질문 기반 단계 추정를 사용해 실제 앱 조건에서도 G3 대비 Image Recall@5, Image Recall@10, Image MRR을 개선한다.
 - oracle-stage 결과는 메인 비교표에서 제외하고, 단계 정보가 정확할수록 개선 폭이 커질 수 있음을 보여주는 참고 분석으로만 사용한다.

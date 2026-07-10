@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import sys
 from collections import Counter
 from pathlib import Path
@@ -53,7 +53,7 @@ CSV_FIELDS = [
     "G4 적용 단계",
     "분류 점수",
     "분류 margin",
-    "자동 G4 적용",
+    "G4 적용",
     "정답 텍스트",
     "G3 텍스트 정답 순위",
     "G4-oracle 텍스트 정답 순위",
@@ -77,7 +77,7 @@ EXCEL_FIELDS = [
     "G4 적용 단계",
     "분류 점수",
     "분류 margin",
-    "자동 G4 적용",
+    "G4 적용",
     "정답 텍스트",
     "G4 텍스트 정답 순위",
     "G4 텍스트 평가",
@@ -177,7 +177,7 @@ def write_report(rows, g3_rows, oracle_rows):
         "G4 텍스트 정답 순위",
         "G4 이미지 정답 순위",
     )
-    applied = sum(1 for row in rows if row["자동 G4 적용"] == "O")
+    applied = sum(1 for row in rows if row["G4 적용"] == "O")
     correct_stage = sum(1 for row in rows if row["예측 실습 단계"] == row["정답 실습 단계"])
 
     lines = [
@@ -185,13 +185,13 @@ def write_report(rows, g3_rows, oracle_rows):
         "",
         "## 평가 개요",
         "",
-        "본 문서에서 G4는 사용자가 실습 단계를 직접 선택하지 않고, 질문과 실습 단계 context profile 간 BGE-M3 의미 유사도를 이용해 단계를 자동 추정한 뒤 G4 re-ranking을 적용하는 방식이다.",
+        "본 문서에서 G4는 사용자가 실습 단계를 직접 선택하지 않고, 질문과 실습 단계 context profile 간 BGE-M3 의미 유사도를 이용해 단계를 추정한 뒤 G4 re-ranking을 적용하는 방식이다.",
         "분류 결과가 낮은 신뢰도 또는 애매한 후보로 판단되면 stage_label을 적용하지 않고 G3와 동일하게 검색한다.",
         "",
-        "## 단계 자동 분류 요약",
+        "## 단계 추정 요약",
         "",
         f"- Top-1 stage accuracy: {percent(correct_stage / len(rows))} ({correct_stage}/{len(rows)})",
-        f"- 자동 G4 적용률: {percent(applied / len(rows))} ({applied}/{len(rows)})",
+        f"- G4 적용률: {percent(applied / len(rows))} ({applied}/{len(rows)})",
         "",
         "## 검색 성능 비교",
         "",
@@ -212,8 +212,8 @@ def write_report(rows, g3_rows, oracle_rows):
             "",
             "## 해석",
             "",
-            "- G4는 실제 앱 사용 조건에 가까운 자동 단계 추정 기반 성능이다.",
-            "- G4가 G3보다 높게 나타났으므로, 자동 단계 분류 기반 context-aware re-ranking이 이미지 검색 순위 개선에 기여한 것으로 해석할 수 있다.",
+            "- G4는 실제 앱 사용 조건에 가까운 단계 추정 기반 성능이다.",
+            "- G4가 G3보다 높게 나타났으므로, 단계 추정 기반 context-aware re-ranking이 이미지 검색 순위 개선에 기여한 것으로 해석할 수 있다.",
             "- 정답 실습 단계를 미리 알고 적용한 oracle-stage 결과는 본문 메인 비교에 포함하지 않고, 필요한 경우 추가 분석 또는 부록에서 상한 성능으로만 언급한다.",
             "",
             "## 참고: oracle-stage 상한 성능",
@@ -291,7 +291,7 @@ def main():
                 "G4 적용 단계": stage_label or "",
                 "분류 점수": f"{classification['score']:.4f}",
                 "분류 margin": f"{classification['margin']:.4f}",
-                "자동 G4 적용": "O" if classification["used"] else "X",
+                "G4 적용": "O" if classification["used"] else "X",
                 "정답 텍스트": question["정답 텍스트"],
                 "G3 텍스트 정답 순위": g3.get("텍스트 정답 순위", ""),
                 "G4-oracle 텍스트 정답 순위": oracle.get("G4 텍스트 정답 순위", ""),
