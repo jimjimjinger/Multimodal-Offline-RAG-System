@@ -44,7 +44,7 @@ Context-aware re-ranking strategy used in G4. The user query is first matched to
 
 ### Fig. 5. Retrieval Performance Comparison among G1-G4
 
-**국문 설명:** G1, G2, G3, G4의 Text Recall@k, Image Recall@k, MRR, Both@k를 비교한다. G4가 G3 대비 이미지 검색 지표를 개선했음을 시각적으로 보여준다.
+**국문 설명:** G1, G2, G3, G4의 Text Recall@k, Image Recall@k, MRR, Both@k를 비교한다. G4가 G3 대비 Image Recall@5, Image Recall@10, Image MRR을 개선했지만 Image Recall@1은 여전히 낮다는 점을 함께 보여준다.
 
 **영문 캡션 초안:**  
 Retrieval performance comparison among G1, G2, G3, and G4 on the 70-query evaluation set. G4 improves image retrieval performance over G3 while maintaining stable text retrieval performance.

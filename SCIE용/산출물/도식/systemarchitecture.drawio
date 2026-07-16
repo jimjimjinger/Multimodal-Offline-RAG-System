@@ -1,0 +1,133 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Fig1_Overall_Framework" id="KusbtXPWoAs7rv-4MTEM">
+    <mxGraphModel dx="1264" dy="768" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="fig1-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=20;fontStyle=1" value="Fig. 1. Overall architecture of the context-aware multimodal RAG framework" vertex="1">
+          <mxGeometry height="40" width="1160" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-offline-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#b0b0b0;dashed=1;arcSize=8;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8" value="Offline preprocessing layer&lt;br&gt;(one-time processing before app runtime)" vertex="1">
+          <mxGeometry height="280" width="1160" x="40" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-runtime-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b0b0b0;arcSize=8;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8" value="Runtime retrieval and response layer" vertex="1">
+          <mxGeometry height="350" width="1160" x="40" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-pdf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;fontStyle=1" value="Robot Training&lt;br&gt;Manual PDF" vertex="1">
+          <mxGeometry height="60" width="140" x="70" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-text-extract" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontSize=12" value="Text Extraction&lt;br&gt;and Chunking" vertex="1">
+          <mxGeometry height="60" width="150" x="250" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-image-extract" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#0891b2;fontSize=12" value="Image Extraction&lt;br&gt;and Refinement" vertex="1">
+          <mxGeometry height="60" width="150" x="250" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-bge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=12" value="BGE-M3&lt;br&gt;Text Embeddings" vertex="1">
+          <mxGeometry height="60" width="160" x="440" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-siglip" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=12" value="SigLIP Features&lt;br&gt;for Image/Text-Image Mapping" vertex="1">
+          <mxGeometry height="60" width="160" x="440" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-text-db" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#15803d;fontSize=12" value="ChromaDB&lt;br&gt;Text Collection" vertex="1">
+          <mxGeometry height="60" width="160" x="650" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-image-map" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fefce8;strokeColor=#a16207;fontSize=12" value="Image Metadata&lt;br&gt;and Mapping Table" vertex="1">
+          <mxGeometry height="60" width="160" x="650" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-processed" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#7e22ce;fontSize=12" value="Processed Dataset&lt;br&gt;text chunks + images + labels" vertex="1">
+          <mxGeometry height="70" width="190" x="880" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-query" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#1d4ed8;fontSize=14;fontStyle=1" value="User Query" vertex="1">
+          <mxGeometry height="60" width="130" x="70" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0369a1;fontSize=12" value="Evaluation Group&lt;br&gt;G1 / G2 / G3 / G4" vertex="1">
+          <mxGeometry height="60" width="160" x="250" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-g1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=12" value="G1&lt;br&gt;Keyword Search" vertex="1">
+          <mxGeometry height="55" width="170" x="460" y="425" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-g2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=12" value="G2&lt;br&gt;Text-only RAG&lt;br&gt;BGE-M3 text retrieval" vertex="1">
+          <mxGeometry height="65" width="170" x="460" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-g3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=12" value="G3&lt;br&gt;Multimodal RAG&lt;br&gt;text + image + mapping" vertex="1">
+          <mxGeometry height="65" width="170" x="460" y="585" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-g4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=12;fontStyle=1" value="G4&lt;br&gt;Context-aware Re-ranking&lt;br&gt;stage + page + section + keyword" vertex="1">
+          <mxGeometry height="65" width="170" x="460" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-evidence" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;fontSize=13;fontStyle=1" value="Top-k Evidence&lt;br&gt;text evidence + image evidence" vertex="1">
+          <mxGeometry height="70" width="190" x="720" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=12;fontStyle=1" value="Quantized Local LLM&lt;br&gt;Qwen / Gemma / Llama&lt;br&gt;4-bit runtime target" vertex="1">
+          <mxGeometry height="80" width="170" x="980" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-response" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#b91c1c;fontSize=13;fontStyle=1" value="Training Guidance&lt;br&gt;Response" vertex="1">
+          <mxGeometry height="65" width="170" x="980" y="635" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontSize=11;align=left;spacingLeft=10" value="Design feature: offline operation with local vector DB and local quantized LLM&lt;br&gt;8GB-RAM class device is a deployment target, not a fully validated benchmark yet." vertex="1">
+          <mxGeometry height="75" width="230" x="700" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e1" edge="1" parent="1" source="fig1-pdf" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-text-extract">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e2" edge="1" parent="1" source="fig1-pdf" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-image-extract">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e3" edge="1" parent="1" source="fig1-text-extract" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-bge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e4" edge="1" parent="1" source="fig1-image-extract" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-siglip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e5" edge="1" parent="1" source="fig1-bge" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-text-db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e6" edge="1" parent="1" source="fig1-siglip" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-image-map">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e7" edge="1" parent="1" source="fig1-text-db" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-processed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e8" edge="1" parent="1" source="fig1-image-map" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-processed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e9" edge="1" parent="1" source="fig1-query" style="endArrow=block;html=1;rounded=0;strokeColor=#475569;" target="fig1-group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e10" edge="1" parent="1" source="fig1-group" style="endArrow=block;html=1;rounded=0;strokeColor=#64748b;" target="fig1-g1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e11" edge="1" parent="1" source="fig1-group" style="endArrow=block;html=1;rounded=0;strokeColor=#16a34a;" target="fig1-g2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e12" edge="1" parent="1" source="fig1-group" style="endArrow=block;html=1;rounded=0;strokeColor=#ca8a04;" target="fig1-g3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e13" edge="1" parent="1" source="fig1-group" style="endArrow=block;html=1;rounded=0;strokeColor=#dc2626;" target="fig1-g4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e14" edge="1" parent="1" source="fig1-g1" style="endArrow=block;html=1;rounded=0;strokeColor=#64748b;" target="fig1-evidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e15" edge="1" parent="1" source="fig1-g2" style="endArrow=block;html=1;rounded=0;strokeColor=#16a34a;" target="fig1-evidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e16" edge="1" parent="1" source="fig1-g3" style="endArrow=block;html=1;rounded=0;strokeColor=#ca8a04;" target="fig1-evidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e17" edge="1" parent="1" source="fig1-g4" style="endArrow=block;html=1;rounded=0;strokeColor=#dc2626;" target="fig1-evidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e18" edge="1" parent="1" source="fig1-evidence" style="endArrow=block;html=1;rounded=0;strokeColor=#7c3aed;" target="fig1-llm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e19" edge="1" parent="1" source="fig1-llm" style="endArrow=block;html=1;rounded=0;strokeColor=#ea580c;" target="fig1-response">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fig1-e20" edge="1" parent="1" source="fig1-processed" style="endArrow=block;html=1;rounded=0;strokeColor=#7e22ce;dashed=1;fontSize=10;" target="fig1-group" value="runtime uses preprocessed DB">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -66,11 +66,11 @@ MRR은 단순히 정답 포함 여부만 보는 Recall@k보다 순위 품질을 
 
 ## 텍스트 검색 평가
 
-텍스트 검색은 정답 텍스트 또는 정답 페이지와 검색된 텍스트 chunk가 얼마나 일치하는지를 기준으로 평가한다.
+텍스트 검색은 relaxed relevance criterion으로 평가한다. 정답 문장과 완전히 동일한 문장이 검색되지 않더라도, 검색된 텍스트 chunk가 정답 텍스트 또는 정답 페이지의 핵심 정보를 충분히 포함하면 정답으로 인정한다. 이는 매뉴얼의 절차 정보가 여러 chunk 또는 인접 page에 나뉘어 나타날 수 있기 때문이다.
 
 | 평가 | 기준 |
 |---|---|
-| O | 정답 텍스트와 직접적으로 같은 내용을 포함하거나, 같은 절차/설명에 해당함 |
+| O | 같은 page/section에 해당하거나, 핵심 keyword를 포함하거나, 의미적으로 같은 절차/설명에 해당함 |
 | △ | 정답과 관련은 있지만 핵심 설명이 부족하거나 주변 내용만 검색됨 |
 | X | 정답과 다른 내용이 검색됨 |
 
@@ -93,7 +93,7 @@ MRR은 단순히 정답 포함 여부만 보는 Recall@k보다 순위 품질을 
 
 ## 이미지 검색 평가
 
-이미지 검색은 `정답 이미지` 파일명이 검색 이미지 Top-k 안에 포함되는지를 기준으로 평가한다.
+이미지 검색은 strict filename matching 기준으로 평가한다. 즉, `정답 이미지` 파일명이 검색 이미지 Top-k 안에 포함되는 경우에만 정답으로 인정한다. 같은 page의 유사 이미지가 검색되더라도 파일명이 정답 이미지와 다르면 오답으로 처리한다.
 
 | 평가 | 기준 |
 |---|---|
@@ -109,6 +109,8 @@ MRR은 단순히 정답 포함 여부만 보는 Recall@k보다 순위 품질을 
 | Image Recall@5 | 정답 이미지가 상위 5개 안에 있는지 |
 | Image Recall@10 | 정답 이미지가 상위 10개 안에 있는지 |
 | Image MRR | 정답 이미지의 평균 역순위 |
+
+따라서 본 연구의 텍스트 지표와 이미지 지표는 동일한 엄격도를 갖지 않는다. Text Recall@k와 Text MRR은 relaxed text retrieval 성능이며, Image Recall@k와 Image MRR은 strict image retrieval 성능이다. Both@k는 relaxed text hit와 strict image hit가 동시에 만족된 경우만 성공으로 계산한다.
 
 이미지 검색 평가는 다음 비교군에 적용한다.
 
@@ -178,7 +180,7 @@ G2는 원칙적으로 이미지 검색 기능을 사용하지 않기 때문에 �
 
 ### 검색 성능 결과표
 
-| 비교군 | Text Recall@1 | Text Recall@5 | Text Recall@10 | Text MRR | Image Recall@1 | Image Recall@5 | Image Recall@10 | Image MRR | Both@5 | Both@10 |
+| 비교군 | Text Recall@1 (relaxed) | Text Recall@5 (relaxed) | Text Recall@10 (relaxed) | Text MRR (relaxed) | Image Recall@1 (strict) | Image Recall@5 (strict) | Image Recall@10 (strict) | Image MRR (strict) | Both@5 | Both@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | G1 키워드 검색 | 75.7% | 95.7% | 98.6% | 0.837 | - | - | - | - | - | - |
 | G2 텍스트 RAG | 81.4% | 95.7% | 100.0% | 0.879 | - | - | - | - | - | - |
@@ -210,7 +212,7 @@ G2는 원칙적으로 이미지 검색 기능을 사용하지 않기 때문에 �
 
 ## 확정 결론
 
-본 연구의 핵심 정량 지표는 Recall@1, Recall@5, Recall@10, MRR로 확정한다.
+본 연구의 핵심 정량 지표는 Recall@1, Recall@5, Recall@10, MRR로 확정한다. 다만 텍스트 검색 지표는 relaxed 기준, 이미지 검색 지표는 strict filename matching 기준으로 산출되었음을 표와 본문에 함께 명시한다.
 응답 품질은 정확성, 구체성, 실습 단계 적합성, 안전성, 이해 용이성의 5개 항목을 O/△/X로 평가한다.
 
 이 구성은 교수님이 요구한 검색 성능, 응답 품질, ablation study를 모두 포함한다.

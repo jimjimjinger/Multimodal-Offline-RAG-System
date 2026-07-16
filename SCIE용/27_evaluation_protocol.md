@@ -32,7 +32,7 @@ G4는 사용자가 실습 단계를 직접 고르지 않는 조건을 가정한�
 
 ### Text Recall@k
 
-Top-k 텍스트 후보 안에 정답 텍스트가 포함되는 비율이다.
+Top-k 텍스트 후보 안에 정답 텍스트 또는 정답과 동등한 관련 정보가 포함되는 비율이다. 본 연구의 Text Recall@k는 relaxed 기준으로 산출한다.
 
 ```text
 Text Recall@k = 정답 텍스트가 Top-k 안에 포함된 질문 수 / 전체 질문 수
@@ -40,7 +40,7 @@ Text Recall@k = 정답 텍스트가 Top-k 안에 포함된 질문 수 / 전체 �
 
 ### Image Recall@k
 
-Top-k 이미지 후보 안에 정답 이미지가 포함되는 비율이다.
+Top-k 이미지 후보 안에 정답 이미지가 포함되는 비율이다. 본 연구의 Image Recall@k는 strict filename matching 기준으로 산출한다.
 
 ```text
 Image Recall@k = 정답 이미지가 Top-k 안에 포함된 질문 수 / 전체 질문 수
@@ -73,10 +73,10 @@ Both@k는 멀티모달 검색 구조인 G3와 G4에서만 계산한다.
 텍스트 검색 평가는 relaxed 기준을 사용한다. 정답 문장과 완전히 동일하지 않더라도 다음 중 하나를 만족하면 정답으로 인정한다.
 
 - 정답 텍스트가 포함된 page 또는 section과 일치
-- 핵심 keyword가 충분히 포함
-- 정답 텍스트와 의미적으로 유사
+- 기준 답변의 핵심 keyword, 수치, 메뉴명, 기능명이 충분히 포함
+- 정답 텍스트와 의미적으로 동일한 절차 또는 설정 정보를 설명
 
-논문 최종본에서는 strict 기준과 relaxed 기준을 분리해서 제시할지 검토할 필요가 있다.
+따라서 Text Recall@k와 Text MRR은 exact sentence match가 아니라 정보 검색 성공률에 가까운 지표로 해석한다. 논문에서는 이를 `Text Recall@k (relaxed)`로 명시한다.
 
 ## 이미지 정답 인정 기준
 
@@ -87,6 +87,8 @@ Both@k는 멀티모달 검색 구조인 G3와 G4에서만 계산한다.
 - 정답 이미지 파일명이 Top-10 안에 있으면 Image Recall@10 성공
 
 같은 page의 유사 이미지가 검색되더라도 정답 이미지 파일명과 다르면 정답으로 인정하지 않는다.
+
+따라서 Image Recall@k와 Image MRR은 `Image Recall@k (strict)` 또는 `strict filename matching` 기준으로 설명한다. Both@k는 relaxed text hit와 strict image hit가 동시에 만족된 경우만 성공으로 계산한다.
 
 ## 응답 품질 평가
 

@@ -10,6 +10,11 @@
 
 제안 시스템이 단순 챗봇이 아니라 전처리, 인덱싱, 검색, re-ranking, 응답 생성을 포함한 framework임을 보여준다.
 
+### 제작 파일
+
+- `SCIE용/산출물/도식/systemarchitecture.drawio`
+- draw.io page: `Fig1_Overall_Framework`
+
 ### 포함 요소
 
 - Manual PDF
@@ -70,6 +75,11 @@ Multimodal Retrieval Method
 
 G4가 G3에서 무엇을 추가했는지 명확히 보여준다.
 
+### 제작 파일
+
+- `SCIE용/산출물/도식/g4_reranking.drawio`
+- draw.io page: `G4_ReRanking`
+
 ### 포함 요소
 
 - G3 candidate list
@@ -78,6 +88,12 @@ G4가 G3에서 무엇을 추가했는지 명확히 보여준다.
 - page range match
 - section/keyword match
 - re-ranked text/image candidates
+
+### 강조할 해석
+
+- G4는 G3 후보를 새로 대체하는 검색기가 아니라 G3 후보 위에 적용되는 re-ranking layer이다.
+- Stage context map에는 정답 이미지 파일명, 정답 chunk ID, 질문 번호를 넣지 않는다.
+- G4의 목적은 정답 이미지를 항상 1순위로 찾는 것이 아니라 관련 이미지 후보의 Top-5/Top-10 포함률과 평균 순위를 개선하는 것이다.
 
 ### 논문 위치
 
