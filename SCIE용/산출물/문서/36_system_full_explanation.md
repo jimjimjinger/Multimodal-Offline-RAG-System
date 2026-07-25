@@ -264,12 +264,12 @@ PyMuPDF를 이용해 PDF page를 순회하면서 이미지 객체를 추출한�
 
 ### 8.4 SigLIP으로 도식 여부 판별
 
-남은 이미지에 대해 SigLIP을 사용한다. 각 이미지와 다음 두 설명문 쌍에 sigmoid 점수를 독립적으로 계산한다.
+남은 이미지에 대해 SigLIP을 사용한다. 각 이미지와 다음 두 설명문의 logit을 계산한 뒤, 두 후보 사이의 상대적 비교를 위해 Softmax 점수로 변환한다.
 
 - blank white page or empty background
 - technical robot diagram or engineering schematic
 
-기술 도식 설명문 점수가 빈 배경 설명문 점수보다 높은 이미지만 `data/processed/final_refined_data/`에 저장한다.
+기술 도식 설명문의 상대 점수가 빈 배경 설명문 점수보다 높은 이미지만 `data/processed/final_refined_data/`에 저장한다. 여기서 Softmax는 SigLIP의 사전학습 방식을 설명하는 것이 아니라, 전처리 단계에서 두 프롬프트를 비교하기 위한 후처리 기준이다.
 
 결과 메타데이터는 `data/processed/final_processing_report.json`에 저장된다.
 

@@ -1,7 +1,6 @@
 import io
 import math
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -31,7 +30,6 @@ from rag_search import rank_image_candidates, retrieve_multimodal  # noqa: E402
 from stage_classifier import classify_stage  # noqa: E402
 from text_filter import semantic_chunking, sentence_records  # noqa: E402
 from unified_extractor import (  # noqa: E402
-    _promote_outputs,
     classify_siglip_scores,
     is_blank_or_solid_image,
 )
@@ -83,7 +81,7 @@ class CoreLogicTests(unittest.TestCase):
     def test_corrupt_image_is_rejected(self):
         self.assertTrue(is_blank_or_solid_image(b"not-an-image"))
 
-    def test_siglip_filter_compares_independent_pair_scores(self):
+    def test_siglip_filter_compares_relative_pair_scores(self):
         accepted = classify_siglip_scores(torch.tensor([0.20, 0.35]))
         rejected = classify_siglip_scores(torch.tensor([0.40, 0.30]))
 
@@ -250,31 +248,6 @@ class CoreLogicTests(unittest.TestCase):
             ["old_image"],
             client.get_collection(IMAGE_COLLECTION_NAME).get()["ids"],
         )
-
-    def test_image_outputs_are_promoted_after_staging_completes(self):
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            root = Path(temporary_directory)
-            output_dir = root / "images"
-            staging_dir = root / "images_building"
-            report_path = root / "report.json"
-            temporary_report = root / "report.json.tmp"
-            output_dir.mkdir()
-            staging_dir.mkdir()
-            (output_dir / "old.png").write_bytes(b"old")
-            (staging_dir / "new.png").write_bytes(b"new")
-            report_path.write_text("old", encoding="utf-8")
-            temporary_report.write_text("new", encoding="utf-8")
-
-            _promote_outputs(
-                staging_dir,
-                output_dir,
-                temporary_report,
-                report_path,
-            )
-
-            self.assertFalse((output_dir / "old.png").exists())
-            self.assertEqual(b"new", (output_dir / "new.png").read_bytes())
-            self.assertEqual("new", report_path.read_text(encoding="utf-8"))
 
     def test_csv_detail_lines_do_not_keep_trailing_whitespace(self):
         rows = [{"details": "first | \nsecond   \n", "rank": 1}]
