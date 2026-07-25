@@ -1,5 +1,4 @@
 import csv
-import json
 import re
 import sys
 from collections import Counter
@@ -13,7 +12,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from paths import VECTOR_DB_DIR, configure_model_cache  # noqa: E402
+from paths import (  # noqa: E402
+    BGE_M3_MODEL_ID,
+    SCIE_DATA_DIR,
+    SCIE_DIR,
+    VECTOR_DB_DIR,
+    configure_model_cache,
+)
 from rag_search import (  # noqa: E402
     IMAGE_COLLECTION_TOP_K,
     IMAGE_RESULTS_LIMIT,
@@ -32,13 +37,6 @@ SEMANTIC_TEXT_TOP_K = 20
 SEMANTIC_TEXT_ACCEPT_RANK = 15
 
 
-def find_scie_dir():
-    return next(path for path in PROJECT_ROOT.iterdir() if path.is_dir() and path.name.startswith("SCIE"))
-
-
-SCIE_DIR = find_scie_dir()
-SCIE_DATA_DIR = SCIE_DIR / "data"
-SCIE_EXCEL_DIR = SCIE_DIR / "excel"
 QUESTION_SET_PATH = SCIE_DATA_DIR / "03_question_set_70.csv"
 DETAIL_OUTPUT_PATH = SCIE_DATA_DIR / "07_pilot_retrieval_results.csv"
 REPORT_OUTPUT_PATH = SCIE_DIR / "07_pilot_results.md"
@@ -204,7 +202,7 @@ def text_rank(expected_answer, expected_page, ids, docs, metas, embedder, text_c
                 "keyword_score": round(keyword_score, 3),
                 "matched": matched,
                 "reason": reason,
-                "preview": re.sub(r"\s+", " ", doc)[:180],
+                "preview": re.sub(r"\s+", " ", doc).strip()[:180].rstrip(),
             }
         )
         if matched and not matched_rank:
@@ -229,10 +227,24 @@ def reciprocal_rank(rank):
     return 0.0 if not rank else 1.0 / int(rank)
 
 
+def clean_csv_rows(rows):
+    cleaned = []
+    for row in rows:
+        cleaned.append(
+            {
+                key: "\n".join(line.rstrip() for line in value.splitlines()).rstrip()
+                if isinstance(value, str)
+                else value
+                for key, value in row.items()
+            }
+        )
+    return cleaned
+
+
 def summarize_rank(rows, rank_key, grade_key):
     total = len(rows)
-    ranks = [int(row[rank_key]) for row in rows if row[rank_key]]
-    counts = Counter(row[grade_key] for row in rows)
+    ranks = [int(row[rank_key]) for row in rows if str(row.get(rank_key, "")).strip()]
+    counts = Counter(row.get(grade_key, "") for row in rows)
     return {
         "total": total,
         "O": counts["O"],
@@ -243,6 +255,19 @@ def summarize_rank(rows, rank_key, grade_key):
         "recall_at_10": sum(1 for rank in ranks if rank <= 10) / total if total else 0.0,
         "mrr": sum(reciprocal_rank(row[rank_key]) for row in rows) / total if total else 0.0,
     }
+
+
+def both_at(rows, text_rank_key, image_rank_key, limit):
+    if not rows:
+        return 0.0
+    return sum(
+        1
+        for row in rows
+        if row.get(text_rank_key)
+        and int(row[text_rank_key]) <= limit
+        and row.get(image_rank_key)
+        and int(row[image_rank_key]) <= limit
+    ) / len(rows)
 
 
 def percent(value):
@@ -269,7 +294,7 @@ def write_detail(rows):
     with DETAIL_OUTPUT_PATH.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(clean_csv_rows(rows))
 
 
 def write_report(text_summary, image_summary, rows):
@@ -363,7 +388,7 @@ def main():
     configure_model_cache()
     questions = read_questions()
 
-    embedder = SentenceTransformer("BAAI/bge-m3")
+    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
     text_collection, image_collection = open_rag_collections(client)
 

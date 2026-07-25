@@ -13,7 +13,7 @@
         <mxCell id="4" value="User Query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=14;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="55" y="230" width="130" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="5" value="G3 Candidates&lt;br&gt;text candidates&lt;br&gt;image candidates&lt;br&gt;base scores" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;fontStyle=1" vertex="1" parent="1">
+        <mxCell id="5" value="G3 Candidates&lt;br&gt;text + image retrieval&lt;br&gt;page proximity&lt;br&gt;BBox-filtered SigLIP mapping" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="245" y="210" width="170" height="110" as="geometry" />
         </mxCell>
         <mxCell id="6" value="Stage Estimation&lt;br&gt;compare query with&lt;br&gt;stage profiles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1" vertex="1" parent="1">
@@ -22,10 +22,10 @@
         <mxCell id="7" value="Stage Context Map&lt;br&gt;page range&lt;br&gt;section heading&lt;br&gt;keywords" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#7e22ce;fontSize=13;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="705" y="210" width="180" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="8" value="Context Score&lt;br&gt;page match&lt;br&gt;section match&lt;br&gt;keyword match" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;fontSize=13;fontStyle=1" vertex="1" parent="1">
+        <mxCell id="8" value="Context Score&lt;br&gt;0.50 page match&lt;br&gt;0.40 section match&lt;br&gt;0.10 keyword match" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;fontSize=13;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="945" y="210" width="180" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="9" value="Score Update&lt;br&gt;final score = base score + lambda * context score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;fontStyle=1" vertex="1" parent="1">
+        <mxCell id="9" value="Score Update&lt;br&gt;text = base + 0.28 * stage&lt;br&gt;image = base + 0.50 * stage * rank + 0.25 * stage-page" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="1185" y="220" width="210" height="90" as="geometry" />
         </mxCell>
         <mxCell id="10" value="Re-ranked Top-k Evidence&lt;br&gt;text evidence&lt;br&gt;image evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#15803d;fontSize=14;fontStyle=1" vertex="1" parent="1">

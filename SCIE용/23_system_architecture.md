@@ -23,7 +23,7 @@
         |
         +-- BGE-M3 텍스트 임베딩
         +-- 이미지 관련 검색 정보 저장
-        +-- SigLIP 기반 텍스트-이미지 유사도 신호 저장
+        +-- BBox 공간 후보 필터 + SigLIP 의미 순위 신호 저장
         |
         v
 G1/G2/G3/G4 검색 모듈
@@ -52,7 +52,7 @@ G1/G2/G3/G4 검색 모듈
 | 텍스트 전처리 | PDF 텍스트 추출, chunk 생성, page/section 정보 저장 | `data/processed/text_chunks.json` |
 | 이미지 전처리 | 매뉴얼 이미지/도식 추출 및 정리 | `data/processed/final_refined_data/` |
 | 텍스트 임베딩 | BGE-M3 기반 텍스트 검색 벡터 생성 | `models/hf_cache/`, `data/vector_db/` |
-| 이미지-텍스트 매핑 | 이미지 주변 텍스트, page 근접도, SigLIP 유사도 신호 활용 | `data/processed/text_image_mapping_report.json` |
+| 이미지-텍스트 매핑 | BBox 거리로 공간 후보를 제한하고 SigLIP 의미 유사도로 후보 순위 결정 | `data/processed/text_image_mapping_report.json` |
 | 벡터 DB | 텍스트 및 이미지 검색 인덱스 저장 | `data/vector_db/rag_db/` |
 | 검색 런타임 | G2/G3/G4 검색 로직 수행 | `src/rag_search.py` |
 | 단계 추정기 | 질문과 실습 단계 context profile의 의미 유사도를 비교해 G4 적용 단계 추정 | `src/stage_classifier.py` |
@@ -65,7 +65,7 @@ G1/G2/G3/G4 검색 모듈
 | 모델/도구 | 사용 위치 | 역할 |
 |---|---|---|
 | BGE-M3 | 전처리 및 런타임 검색 | 질문과 텍스트 chunk 간 semantic retrieval |
-| SigLIP | 전처리/매핑 신호 | 텍스트와 이미지 간 similarity 신호 생성 |
+| SigLIP | 전처리/매핑 신호 | BBox 필터를 통과한 텍스트-이미지 후보의 의미 점수와 순위 생성 |
 | ChromaDB | 검색 인덱스 | 임베딩 기반 텍스트/이미지 후보 검색 |
 | Ollama | 로컬 LLM 실행 | Qwen/Gemma/Llama 답변 생성 |
 | Qwen 2.5 7B Q4 | 응답 생성 | 최종 비교 모델 중 가장 안정적인 응답 품질 |
@@ -99,5 +99,5 @@ G1/G2/G3/G4 검색 모듈
 - G4는 질문 기반 단계 추정 오차가 발생할 수 있으므로, 낮은 신뢰도 질문은 G3로 fallback하도록 구성했다.
 - 정답 실습 단계가 주어진 oracle-stage 결과는 실제 앱 성능으로 해석하지 않고 참고 상한 성능으로만 사용한다.
 - G4는 page-level 및 section-level context에는 효과적이지만, 같은 page 안의 유사 이미지 구분은 아직 부족하다.
-- 응답 품질 평가는 rubric 기반 1차 평가까지 수행했으며, 최종 논문에서는 수동 검토 또는 전문가 평가로 보완하는 것이 바람직하다.
+- 응답 품질 평가는 rubric 기반 보조 분석이며, 전문가 평가나 실제 교육 효과 검증 결과로 해석하지 않는다.
 - 8GB 이하 RAM 환경을 목표로 하지만, 현재 전체 정량 평가는 개발용 노트북 환경에서 수행되었다. 따라서 제한 자원 관련 내용은 시스템 설계 특징으로 설명하고, 검증 완료된 성능 벤치마크로 주장하지 않는다.

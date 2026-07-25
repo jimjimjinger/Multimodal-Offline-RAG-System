@@ -23,14 +23,14 @@ G3의 70개 질의셋 기준 1차 결과는 다음과 같다.
 
 | 지표 | G3 결과 |
 |---|---:|
-| Text Recall@1 | 81.4% |
-| Text Recall@5 | 95.7% |
+| Text Recall@1 | 78.6% |
+| Text Recall@5 | 94.3% |
 | Text Recall@10 | 100.0% |
-| Text MRR | 0.879 |
-| Image Recall@1 | 32.9% |
-| Image Recall@5 | 70.0% |
-| Image Recall@10 | 75.7% |
-| Image MRR | 0.485 |
+| Text MRR | 0.859 |
+| Image Recall@1 | 38.6% |
+| Image Recall@5 | 74.3% |
+| Image Recall@10 | 84.3% |
+| Image MRR | 0.534 |
 
 이 결과는 `SCIE용/07_pilot_results.md`에 정리되어 있다.
 
@@ -171,7 +171,7 @@ G3와 G4는 같은 70개 질의셋으로 비교하였다.
 - `SCIE용/13_g4_decision_summary.md`: 단계 추정 기반 G4를 최종 본문 비교군으로 확정한 판단 요약
 - `SCIE용/14_g4_context_review.md`: 사람이 검토해야 할 단계별 매핑표 검토표
 
-현재 논문용 결과로는 단계 추정 기반 G4 결과를 사용한다. 해당 결과에서는 G3 대비 Text Recall@1이 81.4%에서 85.7%로, Image Recall@5가 70.0%에서 75.7%로, Image Recall@10이 75.7%에서 87.1%로 개선되었다. 다만 Image Recall@1은 37.1%로 여전히 낮기 때문에, G4 결과는 이미지 검색 문제의 해결이 아니라 관련 이미지 후보의 Top-5/Top-10 포함률 개선으로 해석한다. 정답 실습 단계가 주어진 oracle-stage 결과는 본문 메인 비교가 아니라 참고 상한 성능으로만 사용한다.
+현재 논문용 결과로는 단계 추정 기반 G4 결과를 사용한다. 해당 결과에서는 G3 대비 Text Recall@1이 78.6%에서 84.3%로, Image Recall@5가 74.3%에서 85.7%로, Image Recall@10이 84.3%에서 92.9%로, Image MRR이 0.534에서 0.608로 개선되었다. 다만 Image Recall@1은 44.3%로 절반 미만이므로, G4 결과는 이미지 검색 문제의 해결이 아니라 관련 이미지 후보의 순위 개선으로 해석한다. 정답 실습 단계를 입력하는 oracle-stage 결과는 메인 비교에서 제외한다.
 
 ## 기대 효과
 

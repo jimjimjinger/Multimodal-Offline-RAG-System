@@ -8,7 +8,7 @@
 
 ### Fig. 1. Overall Architecture of the Proposed Context-Aware Multimodal RAG Framework
 
-**국문 설명:** 제안 시스템의 전체 구조를 보여준다. 협동 로봇 매뉴얼 PDF에서 텍스트와 이미지/도식을 추출하고, BGE-M3와 SigLIP 기반 신호를 이용해 ChromaDB에 인덱싱한 뒤, G1-G4 검색 모듈과 로컬 LLM을 통해 답변과 이미지 근거를 제공하는 흐름을 나타낸다.
+**국문 설명:** 제안 시스템의 전체 구조를 보여준다. 협동 로봇 매뉴얼 PDF에서 텍스트와 이미지/도식을 추출하고, BBox 공간 후보 필터, BGE-M3 및 SigLIP 의미 순위 신호를 이용해 ChromaDB에 인덱싱한 뒤, G1-G4 검색 모듈과 로컬 LLM을 통해 답변과 이미지 근거를 제공하는 흐름을 나타낸다.
 
 **영문 캡션 초안:**  
 Overall architecture of the proposed context-aware multimodal retrieval-augmented generation framework for collaborative robot training. The framework consists of offline manual preprocessing, text and image indexing, multimodal retrieval, context-aware re-ranking, and local LLM-based response generation.
@@ -29,7 +29,7 @@ Manual preprocessing and indexing pipeline. Text chunks and visual materials are
 **국문 설명:** G3 멀티모달 RAG에서 텍스트 검색, 이미지 전용 검색, page proximity, 텍스트-이미지 매핑 점수가 이미지 후보 순위 산정에 어떻게 결합되는지 보여준다.
 
 **영문 캡션 초안:**  
-Multimodal retrieval strategy used in G3. Candidate images are ranked by combining image retrieval scores, text retrieval relevance, page proximity, and text-image mapping signals.
+Multimodal retrieval strategy used in G3. BBox distance filters spatial text-image candidates during preprocessing, while candidate images are ranked by combining image retrieval scores, text retrieval relevance, page proximity, and SigLIP-based mapping signals.
 
 **본문 위치:** Section III-C, Multimodal Retrieval
 

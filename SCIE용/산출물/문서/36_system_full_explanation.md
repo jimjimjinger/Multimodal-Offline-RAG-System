@@ -264,14 +264,12 @@ PyMuPDF를 이용해 PDF page를 순회하면서 이미지 객체를 추출한�
 
 ### 8.4 SigLIP으로 도식 여부 판별
 
-남은 이미지에 대해 SigLIP을 사용한다. 여기서는 이미지가 실제 기술 도식인지, 빈 배경인지 구분한다.
-
-사용한 label은 다음과 같은 의미이다.
+남은 이미지에 대해 SigLIP을 사용한다. 각 이미지와 다음 두 설명문 쌍에 sigmoid 점수를 독립적으로 계산한다.
 
 - blank white page or empty background
 - technical robot diagram or engineering schematic
 
-기술 도식일 확률이 충분히 높은 이미지만 `data/processed/final_refined_data/`에 저장한다.
+기술 도식 설명문 점수가 빈 배경 설명문 점수보다 높은 이미지만 `data/processed/final_refined_data/`에 저장한다.
 
 결과 메타데이터는 `data/processed/final_processing_report.json`에 저장된다.
 
@@ -279,7 +277,7 @@ PyMuPDF를 이용해 PDF page를 순회하면서 이미지 객체를 추출한�
 
 이 시스템의 핵심은 텍스트와 이미지를 함께 검색하는 것이다. 이를 위해 전처리 단계에서 텍스트 chunk와 이미지 사이의 관련성을 계산한다.
 
-텍스트와 이미지를 연결할 때 사용하는 신호는 크게 세 가지이다.
+텍스트와 이미지를 연결할 때 사용하는 신호는 크게 세 가지이다. 다만 세 신호를 모두 하나의 가중합으로 더하지는 않는다. page는 후보 범위를 정하고, BBox는 공간 후보를 거르며, SigLIP은 남은 후보의 의미 순위를 정한다.
 
 ### 9.1 같은 page 또는 인접 page
 
@@ -297,7 +295,7 @@ PDF 안에서 텍스트와 이미지의 좌표를 알고 있으므로, 두 객�
 - 이미지 bbox의 중심점
 - 두 중심점 사이의 2차원 거리
 
-거리가 가까울수록 텍스트와 이미지가 관련 있을 가능성이 높다. 또한 매뉴얼에서는 설명 텍스트 아래에 그림이 배치되는 경우가 많기 때문에, 이미지가 텍스트 아래쪽에 있으면 약간의 보정을 준다.
+거리가 가까울수록 텍스트와 이미지가 관련 있을 가능성이 높다. 또한 매뉴얼에서는 설명 텍스트 아래에 그림이 배치되는 경우가 많기 때문에, 이미지가 텍스트 아래쪽에 있으면 거리값을 보정한다. 이 거리는 최종 매핑 점수에 직접 더하지 않고, 보정 거리 300포인트 미만의 이미지를 공간 후보로 유지하는 필터에 사용한다.
 
 ### 9.3 SigLIP image-text similarity
 
@@ -307,16 +305,20 @@ PDF 안에서 텍스트와 이미지의 좌표를 알고 있으므로, 두 객�
 
 1. 텍스트 chunk의 heading과 본문을 합쳐 SigLIP용 text prompt를 만든다.
 2. 이미지 feature를 SigLIP으로 미리 계산해 둔다.
-3. 텍스트 feature와 이미지 feature의 유사도를 계산한다.
-4. 그 결과를 `image_text_similarity`로 저장한다.
+3. 텍스트 feature와 이미지 feature의 cosine similarity를 계산한다.
+4. 코사인 값을 전체 전처리 쌍 분포의 고정 robust 구간으로 0~1 정규화한다.
+5. 그 결과를 `image_text_similarity`와 `mapping_score`로 저장한다.
 
-최종 매핑 점수는 거리 기반 점수와 SigLIP 유사도 점수를 합쳐 만든다.
+최종 매핑에서는 BBox와 SigLIP의 역할을 분리한다.
 
 ```text
-hybrid_score = 0.45 * distance_score + 0.55 * siglip_similarity
+공간 후보 = (BBox 보정 거리 < 300)
+의미 구제 후보 = (robust-normalized SigLIP similarity >= 0.40)
+최종 후보 = 공간 후보 OR 의미 구제 후보
+mapping_score = robust-normalized SigLIP cosine similarity
 ```
 
-이 점수는 나중에 이미지 후보를 정렬할 때 `mapping_score`와 `siglip_score`로 사용된다.
+BBox는 멀리 떨어진 이미지를 후보군에서 제외하는 경계이고, SigLIP은 후보가 텍스트 내용과 얼마나 관련 있는지 판단하는 순위 신호이다. BBox 필터 밖의 이미지라도 SigLIP 점수가 0.40 이상이면 배치 예외를 고려해 후보로 남긴다. 최종 후보는 `mapping_score`가 높은 순서로 정렬되며, 거리는 동점 보조 기준으로만 사용한다.
 
 ## 10. 이미지 검색 collection은 어떻게 만드는가
 
@@ -413,7 +415,6 @@ M8 볼트를 이용하여 고정하십시오...
 | page neighbor 이미지 | 검색된 텍스트 chunk와 같은 page 또는 인접 page의 이미지 |
 | image collection 검색 | 질문 임베딩으로 이미지 collection을 검색해서 나온 이미지 |
 | G4 stage map 이미지 | G4에서 실습 단계 page 범위에 포함되는 이미지 |
-| G4 stage query 이미지 | 실습 단계명과 질문을 합친 질의로 image collection을 추가 검색한 이미지 |
 
 이렇게 여러 경로에서 나온 이미지를 하나의 후보 목록으로 합친다.
 
@@ -428,29 +429,28 @@ G3는 멀티모달 RAG이다. G3의 목표는 텍스트 검색 결과와 이미�
 | `image_search_score` | image collection에서 질문과 얼마나 가까운지 |
 | `text_rank_score` | 상위 텍스트 검색 결과와 연결되어 있는지 |
 | `page_score` | 검색된 텍스트와 같은 page 또는 가까운 page에 있는지 |
-| `mapping_score` | 전처리 단계의 텍스트-이미지 hybrid mapping 점수 |
-| `siglip_score` | SigLIP 기반 이미지/도식 신뢰도 또는 image-text 신호 |
-| `source_bonus` | 여러 경로에서 반복적으로 후보로 잡혔는지 |
+| `mapping_score` | BBox 후보 필터 후 SigLIP으로 계산한 텍스트-이미지 의미 점수 |
+| `diagram_score` | SigLIP 기반 이미지/도식 신뢰도 |
 
 G3의 기본 이미지 점수는 대략 다음과 같이 계산된다.
 
 ```text
 base_score =
-  0.42 * image_search_score
-+ 0.18 * text_rank_score
-+ 0.28 * page_score
-+ 0.09 * mapping_score
-+ 0.03 * siglip_score
-+ source_bonus
+  0.25 * image_search_score
++ 0.15 * text_rank_score
++ 0.50 * page_score
++ 0.05 * mapping_score
++ 0.05 * diagram_score
 ```
 
 이 공식의 의미는 다음과 같다.
 
-- 이미지 collection 검색에서 잘 나온 이미지를 가장 중요하게 본다.
-- 답변용 텍스트와 가까운 page에 있는 이미지도 중요하게 본다.
-- 전처리 단계에서 텍스트와 이미지가 잘 매핑된 경우 추가 점수를 준다.
-- SigLIP 신호는 보조적으로 사용한다.
-- 여러 경로에서 동시에 잡힌 이미지는 조금 더 신뢰한다.
+- 검색된 텍스트와 같은 page 또는 인접 page에 있는지를 가장 크게 반영한다.
+- 이미지 collection 검색 결과와 상위 텍스트 연결 순위를 함께 사용한다.
+- BBox 필터를 통과한 뒤 SigLIP으로 계산한 매핑 점수와 도식 신뢰도를 보조적으로 사용한다.
+- BBox 거리는 런타임 점수에 다시 더하지 않는다.
+
+이 가중치는 70개 질의의 후보별 feature cache를 이용한 제한된 격자 탐색과 5-fold 내부 검증으로 선택하였다. 따라서 현재 값은 내부 파일럿 설정이며, 별도 hold-out 데이터에서 추가 검증해야 한다.
 
 ## 14. G4는 G3에서 무엇을 추가하는가
 
@@ -546,16 +546,15 @@ G4에서는 답변용 텍스트를 더 넓게 가져온 뒤, stage context와 �
 | `stage_page_score` | 이미지 page가 해당 stage의 이미지 page 범위와 맞는지 |
 | `stage_keyword_score` | 이미지 주변 문맥이 stage keyword와 맞는지 |
 | `stage_section_score` | 이미지 주변 heading이 관련 section과 맞는지 |
-| `stage_query_score` | stage명 + 질문으로 이미지 collection을 다시 검색한 점수 |
 | `stage_map_score` | page, keyword, section을 합친 stage map 점수 |
 
 stage map 점수는 다음 비중으로 계산된다.
 
 ```text
 stage_map_score =
-  0.58 * page_score
-+ 0.27 * keyword_score
-+ 0.15 * section_score
+  0.50 * page_score
++ 0.10 * keyword_score
++ 0.40 * section_score
 ```
 
 최종 G4 이미지 점수는 G3 base score에 stage context 점수를 더한다.
@@ -563,11 +562,11 @@ stage_map_score =
 ```text
 G4 image score =
   G3 base_score
-+ 0.32 * stage_score * rank_factor
++ 0.50 * stage_score * rank_factor
 + 0.25 * stage_page_score
 ```
 
-즉 G4는 완전히 새로운 검색기가 아니라, G3가 찾은 후보를 실습 단계 맥락에 맞게 다시 정렬하는 구조이다.
+`rank_factor`는 G3 기본 순위 120위 안의 후보에 적용되며 뒤쪽 후보일수록 단계 점수의 영향이 점차 줄어든다. 텍스트 후보는 기본 순위 점수에 `0.28 * text_stage_score`를 더해 재순위화한다. 즉 G4는 완전히 새로운 검색기가 아니라, G3 후보와 단계 page 후보를 실습 단계 맥락에 맞게 다시 정렬하는 구조이다.
 
 ## 18. 실제 앱에서는 어떻게 보이는가
 
@@ -642,10 +641,10 @@ LLM은 전체 매뉴얼을 다 읽지 않는다. 검색된 Top-5 텍스트 chunk
 
 | 비교군 | Text R@1 | Text R@5 | Text R@10 | Text MRR | Image R@1 | Image R@5 | Image R@10 | Image MRR |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| G1 | 75.7% | 95.7% | 98.6% | 0.837 | - | - | - | - |
-| G2 | 81.4% | 95.7% | 100.0% | 0.879 | - | - | - | - |
-| G3 | 81.4% | 95.7% | 100.0% | 0.879 | 32.9% | 70.0% | 75.7% | 0.485 |
-| G4 | 85.7% | 95.7% | 100.0% | 0.903 | 37.1% | 75.7% | 87.1% | 0.539 |
+| G1 | 75.7% | 92.9% | 98.6% | 0.827 | - | - | - | - |
+| G2 | 78.6% | 94.3% | 100.0% | 0.859 | - | - | - | - |
+| G3 | 78.6% | 94.3% | 100.0% | 0.859 | 38.6% | 74.3% | 84.3% | 0.534 |
+| G4 | 84.3% | 95.7% | 100.0% | 0.894 | 44.3% | 85.7% | 92.9% | 0.608 |
 
 쉽게 해석하면 다음과 같다.
 
@@ -658,9 +657,10 @@ G4는 G3 대비 다음이 개선되었다.
 
 | 지표 | G3 | G4 | 변화 |
 |---|---:|---:|---:|
-| Image Recall@5 | 70.0% | 75.7% | +5.7%p |
-| Image Recall@10 | 75.7% | 87.1% | +11.4%p |
-| Image MRR | 0.485 | 0.539 | +0.054 |
+| Image Recall@1 | 38.6% | 44.3% | +5.7%p |
+| Image Recall@5 | 74.3% | 85.7% | +11.4%p |
+| Image Recall@10 | 80.0% | 87.1% | +7.1%p |
+| Image MRR | 0.534 | 0.608 | +0.074 |
 
 따라서 논문에서 가장 강하게 주장할 수 있는 부분은 다음이다.
 
@@ -686,7 +686,7 @@ Qwen이 가장 안정적이지만, G4가 응답 품질까지 크게 올렸다고
 
 즉, G4는 검색을 개선했고, 응답 품질은 Qwen 기준으로 비슷한 수준을 유지했다고 해석한다.
 
-추가로 rubric 기반 평가 결과 중 논문 해석에 영향을 줄 수 있는 G4 우선 검토 대상 54개는 연구자 수동 검토를 완료했다. 검토 결과는 O 13개, △ 6개, X 35개였다. 이 검토는 전체 630개 응답을 모두 사람이 재채점한 것이 아니라, G4 오류 및 애매 사례를 중심으로 한 보완 검토이다.
+이 응답 품질 결과는 정의된 rubric에 따른 보조 분석이며, 전문가 평가나 실제 교육 효과 검증 결과가 아니다.
 
 ## 23. G4 개선 사례
 
@@ -694,9 +694,9 @@ G4가 잘 작동한 대표 사례는 다음과 같다.
 
 | 질문 번호 | 내용 | G3 이미지 순위 | G4 이미지 순위 | 이유 |
 |---|---|---:|---:|---|
-| Q31 | 티치 펜던트 USB 포트 용도 | Top-10 밖 | 3위 | USB 데이터 관리 단계 context 반영 |
-| Q23 | 로봇 시스템 시간 기능 확인 위치 | Top-10 밖 | 5위 | UI/시스템 정보 확인 단계 context 반영 |
-| Q02 | 제어기 전원 공급 접지 조건 | Top-10 밖 | 5위 | 안전/전원/접지 단계 context 반영 |
+| Q31 | 티치 펜던트 USB 포트 용도 | 8위 | 3위 | USB 데이터 관리 단계 context 반영 |
+| Q23 | 로봇 시스템 시간 기능 확인 위치 | Top-10 밖 | 4위 | UI/시스템 정보 확인 단계 context 반영 |
+| Q02 | 제어기 전원 공급 접지 조건 | 2위 | 1위 | 안전/전원/접지 단계 context 반영 |
 
 이 사례들은 G4가 실습 단계 context를 이용해 정답 이미지를 위로 끌어올린 경우이다.
 
@@ -717,7 +717,7 @@ G4가 여전히 실패한 사례도 있다.
 현재 시스템의 강점은 다음과 같다.
 
 1. 텍스트와 이미지를 모두 다루는 멀티모달 검색 구조를 갖고 있다.
-2. 이미지와 텍스트를 단순히 따로 검색하지 않고, page, bbox, 주변 텍스트, SigLIP 신호를 이용해 연결한다.
+2. 이미지와 텍스트를 단순히 따로 검색하지 않고, page와 주변 텍스트를 사용하며 BBox 후보 필터와 SigLIP 의미 순위화를 분리해 연결한다.
 3. G4에서는 질문의 실습 단계를 추정하여 상황 정보를 검색 순위에 반영한다.
 4. 정답 이미지 파일명을 context map에 넣지 않았기 때문에, 정답을 직접 알려주는 방식이 아니다.
 5. Qwen/Gemma/Llama를 모두 로컬 Ollama 모델로 실행할 수 있어 외부 API 없이 오프라인 질의응답이 가능하다.
@@ -733,7 +733,7 @@ G4가 여전히 실패한 사례도 있다.
 2. 이미지는 주변 텍스트와 page 정보를 통해 검색되므로, 이미지 내부의 세부 내용 구분은 제한적이다.
 3. 같은 page에 비슷한 이미지가 여러 개 있으면 정답 이미지를 정확히 고르기 어렵다.
 4. 질문 기반 단계 추정이 틀리거나 애매하면 G4 효과가 줄어든다.
-5. 응답 품질 평가는 전체 630개에 대해 rubric 기반 1차 평가를 수행했고, G4 우선 검토 대상 54개에 대해서는 연구자 수동 검토를 완료하였다.
+5. 응답 품질 평가는 전체 630개에 대한 rubric 기반 보조 분석이며, 전문가 평가나 실제 교육 효과 검증 결과로 해석할 수 없다.
 6. 8GB RAM급 제한 환경을 목표로 설계했지만, 전체 정량 평가는 개발용 노트북에서 수행되었기 때문에 최소 사양 재현성 검증은 별도로 필요하다.
 
 ## 27. 논문에서 주장할 수 있는 내용
@@ -748,7 +748,6 @@ G4가 여전히 실패한 사례도 있다.
 6. G4는 검색 성능은 개선했지만, 응답 품질 개선은 LLM과 prompt 설계의 영향을 받으므로 별도 개선이 필요하다.
 7. 제안 시스템은 클라우드 API에 의존하지 않고 로컬 LLM과 로컬 벡터 DB를 사용하므로, 인터넷 연결이 제한된 실습 교육 환경에 적용 가능성이 있다.
 8. 무거운 멀티모달 처리를 전처리 단계로 분리하고 양자화 LLM을 사용하므로, 8GB RAM급 제한 환경을 목표로 한 경량화 설계 방향을 가진다.
-9. rubric 기반 응답 품질 평가 결과는 G4 우선 검토 대상 54개에 대한 연구자 검토로 보완하였다.
 
 ## 27.1 개선 사례와 실패 사례가 필요한 이유
 
@@ -807,7 +806,6 @@ G4의 정량 성능표만 보면 Image Recall@5, Image Recall@10, Image MRR이 �
 | G4 검색 결과 | `SCIE용/30_g4_auto_results.md` |
 | G4 사례 분석 | `SCIE용/16_g4_case_analysis.md` |
 | 응답 품질 결과 | `SCIE용/22_response_quality_eval_results.md` |
-| 연구자 검토표 | `SCIE용/excel/31_researcher_review_checklist.xlsx` |
 | 표/그림 캡션 | `SCIE용/32_tables_figures_captions.md` |
 
 ## 30. 한 장 요약

@@ -6,6 +6,11 @@ runtime/ollama/
 runtime/ollama_home/
 runtime/ollama_models/
 runtime/downloads/
+data/vector_db/
+.codex/
+.agents/
+tmp/
+build_tmp/
 __pycache__/
 *.py[cod]
 .env

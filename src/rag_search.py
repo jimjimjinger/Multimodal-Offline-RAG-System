@@ -4,6 +4,8 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from chromadb.errors import NotFoundError
+
 from image_index import IMAGE_COLLECTION_NAME
 from paths import FINAL_IMAGES_DIR, FINAL_PROCESSING_REPORT_PATH, STAGE_CONTEXT_MAP_PATH, resolve_image_path
 
@@ -14,18 +16,22 @@ IMAGE_TEXT_TOP_K = 60
 IMAGE_COLLECTION_TOP_K = 80
 IMAGE_RESULTS_LIMIT = 10
 TEXT_RANK_SCORE_WINDOW = 30
-STAGE_IMAGE_TOP_K = 80
-STAGE_RANK_SCORE_WINDOW = 80
-STAGE_CONTEXT_WEIGHT = 0.32
+STAGE_CONTEXT_WEIGHT = 0.50
 STAGE_PAGE_PRIOR_WEIGHT = 0.25
-STAGE_BASE_RANK_WINDOW = 80
+STAGE_BASE_RANK_WINDOW = 120
 STAGE_TEXT_TOP_K = 30
+
+IMAGE_SEARCH_WEIGHT = 0.25
+TEXT_RANK_WEIGHT = 0.15
+PAGE_PROXIMITY_WEIGHT = 0.50
+MAPPING_WEIGHT = 0.05
+DIAGRAM_CONFIDENCE_WEIGHT = 0.05
 
 
 def get_collection_or_none(client, name):
     try:
         return client.get_collection(name=name)
-    except Exception:
+    except NotFoundError:
         return None
 
 
@@ -87,9 +93,7 @@ def _candidate(candidates, file_name, image_path):
             "text_rank_score": 0.0,
             "page_score": 0.0,
             "mapping_score": 0.0,
-            "siglip_score": 0.0,
-            "stage_query_score": 0.0,
-            "stage_rank_score": 0.0,
+            "diagram_score": 0.0,
             "stage_page_score": 0.0,
             "stage_keyword_score": 0.0,
             "stage_section_score": 0.0,
@@ -266,11 +270,11 @@ def _add_text_image_candidates(candidates, metas):
             item["text_rank_score"] = max(item["text_rank_score"], rank_score)
             item["mapping_score"] = max(
                 item["mapping_score"],
-                to_float(mapping.get("hybrid_score"), to_float(meta.get("hybrid_mapping_score"))),
+                to_float(mapping.get("mapping_score"), to_float(meta.get("mapping_score"))),
             )
-            item["siglip_score"] = max(
-                item["siglip_score"],
-                to_float(mapping.get("image_text_similarity"), to_float(meta.get("image_text_similarity"))),
+            item["diagram_score"] = max(
+                item["diagram_score"],
+                to_float(mapping.get("diagram_siglip_score"), to_float(meta.get("diagram_siglip_confidence"))),
             )
             item["sources"].append(f"text_top_{rank}")
 
@@ -298,7 +302,7 @@ def _add_page_neighbor_candidates(candidates, metas):
                 item["pages"] = meta.get("pages", item["pages"])
                 item["page"] = image_page
                 item["page_score"] = max(item["page_score"], rank_score * page_multiplier)
-                item["siglip_score"] = max(item["siglip_score"], to_float(image.get("siglip_score")))
+                item["diagram_score"] = max(item["diagram_score"], to_float(image.get("siglip_score")))
                 item["sources"].append(f"page_neighbor_{rank}")
 
 
@@ -307,7 +311,6 @@ def _add_image_collection_candidates(
     result,
     source_prefix="image_db",
     score_key="image_search_score",
-    rank_score_key=None,
 ):
     metas = query_first(result, "metadatas")
     distances = query_first(result, "distances")
@@ -332,10 +335,7 @@ def _add_image_collection_candidates(
         item["pages"] = str(pages) if pages else item["pages"]
         item["page"] = meta.get("page", item["page"])
         item[score_key] = max(item[score_key], distance_to_score(distance))
-        if rank_score_key:
-            rank_score = max(0.0, 1.0 - ((rank - 1) / max(1, STAGE_RANK_SCORE_WINDOW)))
-            item[rank_score_key] = max(item[rank_score_key], rank_score)
-        item["siglip_score"] = max(item["siglip_score"], to_float(meta.get("diagram_siglip_score")))
+        item["diagram_score"] = max(item["diagram_score"], to_float(meta.get("diagram_siglip_score")))
         item["sources"].append(f"{source_prefix}_{rank}")
         item["document_preview"] = doc[:240]
 
@@ -368,11 +368,11 @@ def _add_stage_map_page_candidates(candidates, stage_context):
             item = _candidate(candidates, image["file_name"], image_path)
             item["page"] = page
             item["stage_page_score"] = max(item["stage_page_score"], 1.0)
-            item["siglip_score"] = max(item["siglip_score"], to_float(image.get("siglip_score")))
+            item["diagram_score"] = max(item["diagram_score"], to_float(image.get("siglip_score")))
             item["sources"].append("stage_map_page")
 
 
-def _apply_stage_context(candidates, stage_label, stage_context=None):
+def _apply_stage_context(candidates, stage_context=None):
     if not stage_context:
         return
 
@@ -385,20 +385,16 @@ def _apply_stage_context(candidates, stage_label, stage_context=None):
         section_score, matched_sections = term_match_score(stage_context["section_terms"], candidate_text)
 
         map_score = (
-            0.58 * page_score
-            + 0.27 * keyword_score
-            + 0.15 * section_score
+            0.50 * page_score
+            + 0.10 * keyword_score
+            + 0.40 * section_score
         ) * stage_context["weight"]
 
         item["stage_page_score"] = max(item["stage_page_score"], page_score)
         item["stage_keyword_score"] = max(item["stage_keyword_score"], keyword_score)
         item["stage_section_score"] = max(item["stage_section_score"], section_score)
         item["stage_map_score"] = max(item["stage_map_score"], map_score)
-        item["stage_score"] = max(
-            item["stage_query_score"] * 0.45,
-            item["stage_rank_score"] * 0.35,
-            item["stage_map_score"],
-        )
+        item["stage_score"] = item["stage_map_score"]
 
         reason_parts = []
         if page_score:
@@ -410,36 +406,26 @@ def _apply_stage_context(candidates, stage_label, stage_context=None):
         item["stage_reason"] = "; ".join(reason_parts)
 
 
-def _source_bonus(item, include_stage_sources=True):
-    sources = set(item["sources"])
-    if not include_stage_sources:
-        sources = {source for source in sources if not source.startswith("stage_")}
-    return min(0.08, 0.02 * len(sources))
-
-
-def _base_image_score(item, include_stage_sources=True):
-    source_bonus = _source_bonus(item, include_stage_sources=include_stage_sources)
+def _base_image_score(item):
     return (
-        0.42 * item["image_search_score"]
-        + 0.18 * item["text_rank_score"]
-        + 0.28 * item["page_score"]
-        + 0.09 * item["mapping_score"]
-        + 0.03 * item["siglip_score"]
-        + source_bonus
+        IMAGE_SEARCH_WEIGHT * item["image_search_score"]
+        + TEXT_RANK_WEIGHT * item["text_rank_score"]
+        + PAGE_PROXIMITY_WEIGHT * item["page_score"]
+        + MAPPING_WEIGHT * item["mapping_score"]
+        + DIAGRAM_CONFIDENCE_WEIGHT * item["diagram_score"]
     )
 
 
 def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_context=False):
     candidate_items = list(candidates.values())
     for item in candidate_items:
-        base_score = _base_image_score(item, include_stage_sources=not use_stage_context)
-        item["base_score"] = round(base_score, 4)
+        item["_base_score"] = _base_image_score(item)
         item["base_rank"] = 0
 
     base_ranked = sorted(
         candidate_items,
         key=lambda item: (
-            item["base_score"],
+            item["_base_score"],
             item["image_search_score"],
             item["page_score"],
             item["text_rank_score"],
@@ -459,20 +445,19 @@ def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_conte
                 rank_factor = 0.35
             else:
                 rank_factor = 0.0
-            score = (
-                item["base_score"]
+            item["_score"] = (
+                item["_base_score"]
                 + (STAGE_CONTEXT_WEIGHT * item["stage_score"] * rank_factor)
                 + (STAGE_PAGE_PRIOR_WEIGHT * item["stage_page_score"])
             )
         else:
-            score = item["base_score"]
-        item["score"] = round(score, 4)
+            item["_score"] = item["_base_score"]
         item["rank"] = 0
         ranked.append(item)
 
     ranked.sort(
         key=lambda item: (
-            item["score"],
+            item["_score"],
             item["stage_score"] if use_stage_context else 0.0,
             item["stage_page_score"] if use_stage_context else 0.0,
             item["image_search_score"],
@@ -483,9 +468,12 @@ def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_conte
         reverse=True,
     )
 
-    for rank, item in enumerate(ranked[:limit], start=1):
+    ranked = ranked[:limit]
+    for rank, item in enumerate(ranked, start=1):
         item["rank"] = rank
-    return ranked[:limit]
+        item["base_score"] = round(item.pop("_base_score"), 4)
+        item["score"] = round(item.pop("_score"), 4)
+    return ranked
 
 
 def _text_stage_score(doc, meta, stage_context):
@@ -580,21 +568,22 @@ def retrieve_multimodal(
 
     stage_context = _stage_context_for(stage_label, map_path=stage_context_map_path)
     answer_query_top_k = max(answer_top_k, STAGE_TEXT_TOP_K) if stage_context else answer_top_k
-
-    answer_result = text_collection.query(query_embeddings=[query_embedding], n_results=answer_query_top_k)
-    answer_ids = query_first(answer_result, "ids")
-    answer_docs = query_first(answer_result, "documents")
-    answer_metas = query_first(answer_result, "metadatas")
+    combined_text_top_k = max(answer_query_top_k, image_text_top_k)
+    text_result = text_collection.query(
+        query_embeddings=[query_embedding],
+        n_results=combined_text_top_k,
+    )
+    text_ids = query_first(text_result, "ids")
+    text_docs = query_first(text_result, "documents")
+    text_metas = query_first(text_result, "metadatas")
     answer_ids, answer_docs, answer_metas = rank_text_results(
-        answer_ids,
-        answer_docs,
-        answer_metas,
+        text_ids[:answer_query_top_k],
+        text_docs[:answer_query_top_k],
+        text_metas[:answer_query_top_k],
         answer_top_k,
         stage_context=stage_context,
     )
-
-    image_text_result = text_collection.query(query_embeddings=[query_embedding], n_results=image_text_top_k)
-    image_text_metas = query_first(image_text_result, "metadatas")
+    image_text_metas = text_metas[:image_text_top_k]
 
     candidates = {}
     _add_text_image_candidates(candidates, image_text_metas)
@@ -609,25 +598,8 @@ def retrieve_multimodal(
 
     use_stage_context = bool(stage_context)
     if use_stage_context:
-        if stage_context:
-            _add_stage_map_page_candidates(candidates, stage_context)
-
-        stage_query = f"{stage_label} {question}"
-        stage_embedding = embedder.encode(stage_query).tolist()
-
-        if image_collection is not None:
-            stage_image_result = image_collection.query(
-                query_embeddings=[stage_embedding],
-                n_results=STAGE_IMAGE_TOP_K,
-            )
-            _add_image_collection_candidates(
-                candidates,
-                stage_image_result,
-                source_prefix="stage_image_db",
-                score_key="stage_query_score",
-                rank_score_key="stage_rank_score",
-            )
-        _apply_stage_context(candidates, stage_label, stage_context=stage_context)
+        _add_stage_map_page_candidates(candidates, stage_context)
+        _apply_stage_context(candidates, stage_context=stage_context)
 
     images = rank_image_candidates(
         candidates,
@@ -635,7 +607,6 @@ def retrieve_multimodal(
         use_stage_context=use_stage_context,
     )
     return {
-        "query_embedding": query_embedding,
         "answer_ids": answer_ids,
         "answer_docs": answer_docs,
         "answer_metas": answer_metas,
@@ -643,6 +614,5 @@ def retrieve_multimodal(
         "images": images,
         "image_collection_available": image_collection is not None,
         "stage_context_used": use_stage_context,
-        "stage_context_map_used": stage_context is not None,
         "stage_context": stage_context,
     }

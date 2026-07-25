@@ -1,20 +1,28 @@
 import json
 import math
-import chromadb
 import re
+from pathlib import Path
+
+import chromadb
 import torch
 import torch.nn.functional as F
-from pathlib import Path
+from chromadb.errors import ChromaError, NotFoundError
 from PIL import Image
 from sentence_transformers import SentenceTransformer
-from transformers import SiglipProcessor, SiglipModel
-from image_index import IMAGE_COLLECTION_NAME, build_image_search_collection
+from transformers import SiglipModel, SiglipProcessor
+
+from image_index import (
+    HNSW_CONFIGURATION,
+    IMAGE_COLLECTION_NAME,
+    build_image_search_collection,
+)
 from paths import (
+    BGE_M3_MODEL_ID,
     FINAL_IMAGES_DIR,
     FINAL_PROCESSING_REPORT_PATH,
     SIGLIP_MODEL_DIR,
-    TEXT_IMAGE_MAPPING_REPORT_PATH,
     TEXT_CHUNKS_PATH,
+    TEXT_IMAGE_MAPPING_REPORT_PATH,
     VECTOR_DB_DIR,
     configure_model_cache,
     project_relative,
@@ -22,42 +30,58 @@ from paths import (
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 COLLECTION_NAME = "doosan_manual_collection"
+TEXT_STAGING_COLLECTION_NAME = f"{COLLECTION_NAME}_building"
+IMAGE_STAGING_COLLECTION_NAME = f"{IMAGE_COLLECTION_NAME}_building"
+TEXT_BACKUP_COLLECTION_NAME = f"{COLLECTION_NAME}_backup"
+IMAGE_BACKUP_COLLECTION_NAME = f"{IMAGE_COLLECTION_NAME}_backup"
 
-# 텍스트 영역의 중심점과 도면 영역의 중심점을 계산하여 두 객체 간의 2차원 물리적 최단 거리를 측정하고, 이미지가 텍스트 아래에 있을 경우 가산점을 부여하는 함수
-def calculate_2d_distance(text_bboxes, img_bbox):
-    if not text_bboxes: return 9999.0
-    
-    min_x = min([b['coord'][0] for b in text_bboxes])
-    min_y = min([b['coord'][1] for b in text_bboxes])
-    max_x = max([b['coord'][2] for b in text_bboxes])
-    max_y = max([b['coord'][3] for b in text_bboxes])
-    
-    text_center_x = (min_x + max_x) / 2
-    text_center_y = (min_y + max_y) / 2
-    
-    img_center_x = (img_bbox['x0'] + img_bbox['x1']) / 2
-    img_center_y = (img_bbox['y0'] + img_bbox['y1']) / 2
-    
-    distance = math.hypot(text_center_x - img_center_x, text_center_y - img_center_y)
-    
-    # 보통 그림이 아래에 있는것을 판단
-    if img_center_y > text_center_y: distance *= 0.8 
-    return distance
+MAX_DISTANCE = 300.0
+TOP_N_IMAGES = 2
+SIGLIP_KEEP_THRESHOLD = 0.40
 
-# 텍스트 내용 중에 "그림 1" 또는 "Fig. 2"와 같이 도면을 직접적으로 가리키는 명시적인 단어가 존재하는지 확인하여 매핑 정확도를 보정하는 함수
-def check_explicit_caption(text):
-    pattern = r'(그림|도면|Fig\.?|Figure)\s*\d+'
-    if re.search(pattern, text, re.IGNORECASE): return True
-    return False
-
-# 이미지 매핑 필터링 상수
-MAX_DISTANCE = 300.0   # 이 거리를 초과하면 관련 없는 이미지로 판단하여 제외
-TOP_N_IMAGES = 2       # 임계값을 통과한 이미지 중 최대 보관 개수
-SIGLIP_RELATIVE_KEEP_THRESHOLD = 0.40
-DISTANCE_SCORE_WEIGHT = 0.45
-SIGLIP_SCORE_WEIGHT = 0.55
+# Five and 95 percentile values from the pilot image-text pair distribution.
+SIGLIP_COSINE_LOW = -0.03492925
+SIGLIP_COSINE_HIGH = 0.09054340
 SIGLIP_TEXT_MAX_CHARS = 1200
 SIGLIP_IMAGE_BATCH_SIZE = 16
+SIGLIP_TEXT_BATCH_SIZE = 32
+CHROMA_BATCH_SIZE = 50
+
+
+def calculate_2d_distance(text_bboxes, img_bbox, image_page=None):
+    """Calculate center distance using only text BBoxes on the image page."""
+    page_bboxes = [
+        bbox
+        for bbox in text_bboxes
+        if "coord" in bbox
+        and (image_page is None or int(bbox.get("page", image_page)) == int(image_page))
+    ]
+    if not page_bboxes:
+        return 9999.0
+
+    min_x = min(bbox["coord"][0] for bbox in page_bboxes)
+    min_y = min(bbox["coord"][1] for bbox in page_bboxes)
+    max_x = max(bbox["coord"][2] for bbox in page_bboxes)
+    max_y = max(bbox["coord"][3] for bbox in page_bboxes)
+
+    text_center_x = (min_x + max_x) / 2
+    text_center_y = (min_y + max_y) / 2
+    image_center_x = (img_bbox["x0"] + img_bbox["x1"]) / 2
+    image_center_y = (img_bbox["y0"] + img_bbox["y1"]) / 2
+
+    distance = math.hypot(
+        text_center_x - image_center_x,
+        text_center_y - image_center_y,
+    )
+    if image_center_y > text_center_y:
+        distance *= 0.8
+    return distance
+
+
+def check_explicit_caption(text):
+    """Return whether text explicitly refers to a numbered figure or diagram."""
+    pattern = r"(그림|도면|도표|도식|Fig\.?|Figure)\s*\d+"
+    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 def build_siglip_text_prompt(chunk):
@@ -71,12 +95,18 @@ def load_siglip_resources():
     if not SIGLIP_MODEL_DIR.exists():
         raise FileNotFoundError(
             f"SigLIP 모델 폴더가 없습니다: {SIGLIP_MODEL_DIR}\n"
-            "먼저 `python scripts/download_siglip.py`를 실행하세요."
+            "`python scripts/download_siglip.py`를 먼저 실행하세요."
         )
 
-    print(f"[{DEVICE}] SigLIP image-text similarity 모델 로드 중...")
-    processor = SiglipProcessor.from_pretrained(str(SIGLIP_MODEL_DIR))
-    model = SiglipModel.from_pretrained(str(SIGLIP_MODEL_DIR)).to(DEVICE)
+    print(f"[{DEVICE}] SigLIP 모델을 로컬 폴더에서 불러오는 중입니다.")
+    processor = SiglipProcessor.from_pretrained(
+        str(SIGLIP_MODEL_DIR),
+        local_files_only=True,
+    )
+    model = SiglipModel.from_pretrained(
+        str(SIGLIP_MODEL_DIR),
+        local_files_only=True,
+    ).to(DEVICE)
     model.eval()
     return processor, model
 
@@ -88,242 +118,398 @@ def extract_feature_tensor(features):
         return features.pooler_output
     if hasattr(features, "last_hidden_state"):
         return features.last_hidden_state[:, 0]
-    raise TypeError(f"지원하지 않는 SigLIP feature 반환 형식입니다: {type(features)}")
+    raise TypeError(f"지원하지 않는 SigLIP feature 형식입니다: {type(features)}")
 
 
-def precompute_siglip_image_features(img_metadata, processor, model):
-    print("SigLIP 이미지 feature 사전 계산 중...")
+def precompute_siglip_image_features(image_metadata, processor, model):
+    print("SigLIP 이미지 특징을 배치 단위로 계산하는 중입니다.")
     image_features = {}
     batch_names = []
-    images = []
+    batch_images = []
 
     def flush_batch():
-        if not images:
+        if not batch_images:
             return
 
-        inputs = processor(images=images, return_tensors="pt").to(DEVICE)
-        with torch.no_grad():
-            features = model.get_image_features(**inputs)
-            features = extract_feature_tensor(features)
+        inputs = processor(images=batch_images, return_tensors="pt").to(DEVICE)
+        with torch.inference_mode():
+            features = extract_feature_tensor(model.get_image_features(**inputs))
             features = F.normalize(features, p=2, dim=-1).detach().cpu()
 
         for file_name, feature in zip(batch_names, features):
             image_features[file_name] = feature
 
         batch_names.clear()
-        images.clear()
+        batch_images.clear()
 
-    for img in img_metadata:
-        image_path = FINAL_IMAGES_DIR / img["file_name"]
+    for image_metadata_item in image_metadata:
+        image_path = FINAL_IMAGES_DIR / image_metadata_item["file_name"]
         if not image_path.exists():
             continue
 
         with Image.open(image_path) as image:
-            images.append(image.convert("RGB"))
-        batch_names.append(img["file_name"])
+            batch_images.append(image.convert("RGB"))
+        batch_names.append(image_metadata_item["file_name"])
 
-        if len(images) >= SIGLIP_IMAGE_BATCH_SIZE:
+        if len(batch_images) >= SIGLIP_IMAGE_BATCH_SIZE:
             flush_batch()
 
     flush_batch()
-    print(f"SigLIP 이미지 feature 계산 완료: {len(image_features)}개")
+    print(f"SigLIP 이미지 특징 계산 완료: {len(image_features)}개")
     return image_features
 
 
-def calculate_siglip_image_text_scores(text_prompt, candidates, processor, model, image_features):
+def precompute_siglip_text_features(text_chunks, processor, model):
+    print("SigLIP 텍스트 특징을 배치 단위로 계산하는 중입니다.")
+    prompts = [build_siglip_text_prompt(chunk) for chunk in text_chunks]
+    text_features = []
+
+    for start in range(0, len(prompts), SIGLIP_TEXT_BATCH_SIZE):
+        batch = prompts[start : start + SIGLIP_TEXT_BATCH_SIZE]
+        inputs = processor(
+            text=batch,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        ).to(DEVICE)
+        with torch.inference_mode():
+            features = extract_feature_tensor(model.get_text_features(**inputs))
+            features = F.normalize(features, p=2, dim=-1).detach().cpu()
+        text_features.extend(features)
+
+    print(f"SigLIP 텍스트 특징 계산 완료: {len(text_features)}개")
+    return text_features
+
+
+def calculate_siglip_image_text_scores(
+    text_feature,
+    candidates,
+    model,
+    image_features,
+):
     valid_candidates = []
     valid_features = []
 
     for candidate in candidates:
         feature = image_features.get(candidate["file_name"])
         if feature is None:
+            candidate["siglip_cosine"] = 0.0
+            candidate["siglip_raw_logit"] = 0.0
+            candidate["siglip_probability"] = 0.0
             candidate["image_text_similarity"] = 0.0
             candidate["image_missing"] = True
             continue
-
         valid_candidates.append(candidate)
         valid_features.append(feature)
 
     if not valid_features:
         return
 
-    inputs = processor(
-        text=[text_prompt],
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-    ).to(DEVICE)
+    image_matrix = torch.stack(valid_features)
+    cosine_scores = image_matrix @ text_feature
+    logits = cosine_scores
+    if hasattr(model, "logit_scale"):
+        logits = logits * model.logit_scale.exp().detach().cpu()
+    if hasattr(model, "logit_bias"):
+        logits = logits + model.logit_bias.detach().cpu()
+    probabilities = torch.sigmoid(logits).tolist()
 
-    with torch.no_grad():
-        text_feature = model.get_text_features(**inputs)
-        text_feature = extract_feature_tensor(text_feature)
-        text_feature = F.normalize(text_feature, p=2, dim=-1).detach().cpu()[0]
-        image_matrix = torch.stack(valid_features)
-        logits = image_matrix @ text_feature
-        if hasattr(model, "logit_scale"):
-            logits = logits * model.logit_scale.exp().detach().cpu()
-        if hasattr(model, "logit_bias"):
-            logits = logits + model.logit_bias.detach().cpu()
-        probabilities = torch.sigmoid(logits).detach().cpu().tolist()
-        if logits.numel() > 1:
-            relative_scores = torch.softmax(logits, dim=0).detach().cpu().tolist()
-        else:
-            relative_scores = [0.0]
-
-    for candidate, logit, probability, relative_score in zip(
+    for candidate, cosine, logit, probability in zip(
         valid_candidates,
-        logits.detach().cpu().tolist(),
+        cosine_scores.tolist(),
+        logits.tolist(),
         probabilities,
-        relative_scores,
     ):
-        candidate["siglip_raw_logit"] = round(float(logit), 4)
-        candidate["siglip_probability"] = round(float(probability), 6)
-        candidate["image_text_similarity"] = round(float(relative_score), 4)
+        candidate["siglip_cosine"] = float(cosine)
+        candidate["siglip_raw_logit"] = float(logit)
+        candidate["siglip_probability"] = float(probability)
+        candidate["image_text_similarity"] = normalize_siglip_cosine(cosine)
         candidate["image_missing"] = False
 
 
 def calculate_distance_score(distance):
     if distance >= MAX_DISTANCE:
         return 0.0
-    return round(max(0.0, 1.0 - (distance / MAX_DISTANCE)), 4)
+    return max(0.0, 1.0 - (distance / MAX_DISTANCE))
 
 
-def calculate_hybrid_score(distance_score, siglip_similarity):
-    score = (DISTANCE_SCORE_WEIGHT * distance_score) + (SIGLIP_SCORE_WEIGHT * siglip_similarity)
-    return round(score, 4)
+def normalize_siglip_cosine(cosine):
+    span = SIGLIP_COSINE_HIGH - SIGLIP_COSINE_LOW
+    if span <= 0:
+        return 0.0
+    return max(0.0, min(1.0, (float(cosine) - SIGLIP_COSINE_LOW) / span))
 
-# 텍스트 데이터와 이미지 데이터를 불러와 공간적 거리와 캡션 유무를 기준으로 서로 정확히 짝을 지은 후, 이를 AI가 검색할 수 있도록 ChromaDB에 최종 저장하는 총괄 함수
-def build_multimodal_db_v2(text_json=TEXT_CHUNKS_PATH, img_json=FINAL_PROCESSING_REPORT_PATH, db_path=VECTOR_DB_DIR):
-    with open(text_json, "r", encoding="utf-8") as f:
-        text_chunks = json.load(f)
-    with open(img_json, "r", encoding="utf-8") as f:
-        img_metadata = json.load(f)
-        
+
+def _delete_collection_if_exists(client, collection_name):
+    try:
+        client.delete_collection(name=collection_name)
+    except NotFoundError:
+        pass
+
+
+def _collection_or_none(client, collection_name):
+    try:
+        return client.get_collection(name=collection_name)
+    except NotFoundError:
+        return None
+
+
+def _promote_collection_pair(client):
+    replacements = [
+        (
+            TEXT_STAGING_COLLECTION_NAME,
+            COLLECTION_NAME,
+            TEXT_BACKUP_COLLECTION_NAME,
+        ),
+        (
+            IMAGE_STAGING_COLLECTION_NAME,
+            IMAGE_COLLECTION_NAME,
+            IMAGE_BACKUP_COLLECTION_NAME,
+        ),
+    ]
+
+    staging = {
+        staging_name: client.get_collection(name=staging_name)
+        for staging_name, _, _ in replacements
+    }
+    previous = {}
+    promoted = []
+
+    try:
+        for _, final_name, backup_name in replacements:
+            _delete_collection_if_exists(client, backup_name)
+            current = _collection_or_none(client, final_name)
+            if current is not None:
+                current.modify(name=backup_name)
+                previous[final_name] = backup_name
+
+        for staging_name, final_name, _ in replacements:
+            staging[staging_name].modify(name=final_name)
+            promoted.append(final_name)
+    except ChromaError:
+        for final_name in promoted:
+            _delete_collection_if_exists(client, final_name)
+        for final_name, backup_name in previous.items():
+            backup = _collection_or_none(client, backup_name)
+            if backup is not None:
+                backup.modify(name=final_name)
+        raise
+
+    for backup_name in previous.values():
+        _delete_collection_if_exists(client, backup_name)
+
+
+def _report_candidate(candidate):
+    return {
+        "file_name": candidate["file_name"],
+        "page": candidate["page"],
+        "distance": round(candidate["distance"], 2),
+        "distance_score": round(candidate["distance_score"], 6),
+        "spatial_candidate": candidate["distance"] < MAX_DISTANCE,
+        "image_text_similarity": round(candidate["image_text_similarity"], 6),
+        "siglip_cosine": round(candidate["siglip_cosine"], 6),
+        "siglip_raw_logit": round(candidate["siglip_raw_logit"], 6),
+        "siglip_probability": round(candidate["siglip_probability"], 6),
+        "diagram_siglip_score": round(candidate["diagram_siglip_score"], 6),
+        "mapping_score": round(candidate["mapping_score"], 6),
+    }
+
+
+def build_multimodal_db_v2(
+    text_json=TEXT_CHUNKS_PATH,
+    image_json=FINAL_PROCESSING_REPORT_PATH,
+    db_path=VECTOR_DB_DIR,
+):
+    text_chunks = json.loads(Path(text_json).read_text(encoding="utf-8"))
+    image_metadata = json.loads(Path(image_json).read_text(encoding="utf-8"))
+    if not text_chunks:
+        raise ValueError("텍스트 청크가 비어 있습니다.")
+    if not image_metadata:
+        raise ValueError("이미지 메타데이터가 비어 있습니다.")
+
     configure_model_cache()
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(db_path))
-    collection = client.get_or_create_collection(name=COLLECTION_NAME)
-    
-    embedding_model = SentenceTransformer('BAAI/bge-m3')
-    siglip_processor, siglip_model = load_siglip_resources()
-    siglip_image_features = precompute_siglip_image_features(img_metadata, siglip_processor, siglip_model)
-    mapping_report = []
-    print("2D 공간 거리 + SigLIP image-text similarity 기반 매핑 시작...")
 
-    for i, chunk in enumerate(text_chunks):
+    _delete_collection_if_exists(client, TEXT_STAGING_COLLECTION_NAME)
+    text_collection = client.get_or_create_collection(
+        name=TEXT_STAGING_COLLECTION_NAME,
+        configuration=HNSW_CONFIGURATION,
+    )
+
+    embedding_model = SentenceTransformer(
+        BGE_M3_MODEL_ID,
+        local_files_only=True,
+    )
+    text_embeddings = embedding_model.encode(
+        [chunk["text"] for chunk in text_chunks],
+        batch_size=32,
+        show_progress_bar=True,
+    ).tolist()
+
+    siglip_processor, siglip_model = load_siglip_resources()
+    image_features = precompute_siglip_image_features(
+        image_metadata,
+        siglip_processor,
+        siglip_model,
+    )
+    text_features = precompute_siglip_text_features(
+        text_chunks,
+        siglip_processor,
+        siglip_model,
+    )
+
+    images_by_page = {}
+    for image in image_metadata:
+        images_by_page.setdefault(int(image["page"]), []).append(image)
+
+    mapping_report = []
+    upsert_ids = []
+    upsert_documents = []
+    upsert_embeddings = []
+    upsert_metadatas = []
+    print("BBox 후보 제한과 SigLIP 의미 순위 기반 매핑을 시작합니다.")
+
+    for index, (chunk, text_feature) in enumerate(zip(text_chunks, text_features)):
         text = chunk["text"]
-        emb = embedding_model.encode(text).tolist()
-        
-        page_num = chunk["pages"][0]
-        same_page_imgs = [img for img in img_metadata if img['page'] in [page_num, page_num + 1]]
-        
+        chunk_pages = sorted({int(page) for page in chunk.get("pages", [])})
+        candidate_pages = set(chunk_pages)
+        candidate_pages.update(page + 1 for page in chunk_pages)
+        nearby_images = [
+            image
+            for page in sorted(candidate_pages)
+            for image in images_by_page.get(page, [])
+        ]
+
         scored_images = []
-        is_caption_text = check_explicit_caption(text)
-        siglip_text_prompt = build_siglip_text_prompt(chunk)
-        
-        for img in same_page_imgs:
-            dist = calculate_2d_distance(chunk["bboxes"], img["bbox"])
-            if img['page'] == page_num + 1: 
-                dist += 1000.0     # 다음 페이지에 있으면 패널티 부여   
-            if is_caption_text: dist *= 0.1     # 가중치
-                
-            scored_images.append({  # 점수판 기록
-                "file_name": img["file_name"],
-                "page": img["page"],
-                "distance": dist,
-                "distance_score": calculate_distance_score(dist),
-                "diagram_siglip_score": img["siglip_score"],
-                "siglip_raw_logit": 0.0,
-                "siglip_probability": 0.0,
-                "image_text_similarity": 0.0,
-                "hybrid_score": 0.0,
-            })
+        explicit_caption = check_explicit_caption(text)
+        for image in nearby_images:
+            image_page = int(image["page"])
+            distance = calculate_2d_distance(
+                chunk.get("bboxes", []),
+                image["bbox"],
+                image_page=image_page,
+            )
+            if image_page not in chunk_pages:
+                distance += 1000.0
+            if explicit_caption:
+                distance *= 0.1
+
+            scored_images.append(
+                {
+                    "file_name": image["file_name"],
+                    "page": image_page,
+                    "distance": distance,
+                    "distance_score": calculate_distance_score(distance),
+                    "diagram_siglip_score": float(image.get("siglip_score", 0.0)),
+                    "siglip_cosine": 0.0,
+                    "siglip_raw_logit": 0.0,
+                    "siglip_probability": 0.0,
+                    "image_text_similarity": 0.0,
+                    "mapping_score": 0.0,
+                }
+            )
 
         calculate_siglip_image_text_scores(
-            siglip_text_prompt,
+            text_feature,
             scored_images,
-            siglip_processor,
             siglip_model,
-            siglip_image_features,
+            image_features,
         )
+        for candidate in scored_images:
+            candidate["mapping_score"] = candidate["image_text_similarity"]
 
-        for scored_image in scored_images:
-            scored_image["hybrid_score"] = calculate_hybrid_score(
-                scored_image["distance_score"],
-                scored_image["image_text_similarity"],
-            )
-        
-        # 거리 기반 후보를 기본으로 유지하되, SigLIP similarity가 높은 후보는 추가로 살린다.
         filtered_images = [
-            si for si in scored_images
-            if si["distance"] < MAX_DISTANCE
-            or si["image_text_similarity"] >= SIGLIP_RELATIVE_KEEP_THRESHOLD
+            candidate
+            for candidate in scored_images
+            if candidate["distance"] < MAX_DISTANCE
+            or candidate["image_text_similarity"] >= SIGLIP_KEEP_THRESHOLD
         ]
-        filtered_images.sort(key=lambda x: (x["hybrid_score"], -x["distance"]), reverse=True)
+        filtered_images.sort(
+            key=lambda candidate: (
+                candidate["mapping_score"],
+                -candidate["distance"],
+            ),
+            reverse=True,
+        )
         top_images = filtered_images[:TOP_N_IMAGES]
 
-        # 선별된 이미지만 경로를 생성하여 메타데이터에 저장
-        final_img_paths = [project_relative(FINAL_IMAGES_DIR / si["file_name"]) for si in top_images]
-        primary_diagram_score = top_images[0]["diagram_siglip_score"] if top_images else 0.0
-        primary_similarity = top_images[0]["image_text_similarity"] if top_images else 0.0
-        primary_hybrid_score = top_images[0]["hybrid_score"] if top_images else 0.0
-        top_candidates = [
-            {
-                "file_name": si["file_name"],
-                "page": si["page"],
-                "distance": round(si["distance"], 2),
-                "distance_score": si["distance_score"],
-                "image_text_similarity": si["image_text_similarity"],
-                "siglip_raw_logit": si["siglip_raw_logit"],
-                "siglip_probability": si["siglip_probability"],
-                "diagram_siglip_score": si["diagram_siglip_score"],
-                "hybrid_score": si["hybrid_score"],
-            }
-            for si in top_images
+        image_paths = [
+            project_relative(FINAL_IMAGES_DIR / candidate["file_name"])
+            for candidate in top_images
         ]
-        
-        meta = {
+        top_candidates = [_report_candidate(candidate) for candidate in top_images]
+        primary = top_images[0] if top_images else {}
+
+        metadata = {
             "heading": chunk["heading"],
-            "pages": str(chunk["pages"]),
-            "linked_images": json.dumps(final_img_paths),
-            "siglip_confidence": primary_diagram_score,
-            "diagram_siglip_confidence": primary_diagram_score,
-            "image_text_similarity": primary_similarity,
-            "hybrid_mapping_score": primary_hybrid_score,
-            "mapping_candidates": json.dumps(top_candidates, ensure_ascii=False),
-            "mapping_method": "2d_spatial_siglip_similarity"
+            "pages": json.dumps(chunk["pages"]),
+            "linked_images": json.dumps(image_paths),
+            "diagram_siglip_confidence": float(
+                primary.get("diagram_siglip_score", 0.0)
+            ),
+            "image_text_similarity": float(
+                primary.get("image_text_similarity", 0.0)
+            ),
+            "mapping_score": float(primary.get("mapping_score", 0.0)),
+            "mapping_candidates": json.dumps(
+                top_candidates,
+                ensure_ascii=False,
+            ),
+            "mapping_method": "bbox_candidate_filter_siglip_cosine_ranking",
         }
 
-        mapping_report.append({
-            "chunk_id": f"chunk_{i}",
-            "heading": chunk["heading"],
-            "pages": chunk["pages"],
-            "text_preview": text[:250],
-            "linked_images": final_img_paths,
-            "top_candidates": top_candidates,
-        })
-        
-        collection.upsert(
-            documents=[text], embeddings=[emb], metadatas=[meta], ids=[f"chunk_{i}"]
+        chunk_id = f"chunk_{index}"
+        mapping_report.append(
+            {
+                "chunk_id": chunk_id,
+                "heading": chunk["heading"],
+                "pages": chunk["pages"],
+                "text_preview": text[:250],
+                "linked_images": image_paths,
+                "top_candidates": top_candidates,
+            }
         )
-        if i % 50 == 0: print(f"진행 중: {i}/{len(text_chunks)}")
+        upsert_ids.append(chunk_id)
+        upsert_documents.append(text)
+        upsert_embeddings.append(text_embeddings[index])
+        upsert_metadatas.append(metadata)
 
-    with open(TEXT_IMAGE_MAPPING_REPORT_PATH, "w", encoding="utf-8") as f:
-        json.dump(mapping_report, f, indent=2, ensure_ascii=False)
+        if index % 50 == 0:
+            print(f"매핑 진행: {index}/{len(text_chunks)}")
 
-    print(f"{IMAGE_COLLECTION_NAME} 이미지 전용 검색 컬렉션 생성 중...")
+    for start in range(0, len(upsert_ids), CHROMA_BATCH_SIZE):
+        end = start + CHROMA_BATCH_SIZE
+        text_collection.upsert(
+            ids=upsert_ids[start:end],
+            documents=upsert_documents[start:end],
+            embeddings=upsert_embeddings[start:end],
+            metadatas=upsert_metadatas[start:end],
+        )
+
     image_collection = build_image_search_collection(
         text_chunks=text_chunks,
-        image_metadata=img_metadata,
+        image_metadata=image_metadata,
         embedding_model=embedding_model,
         client=client,
         reset=True,
+        collection_name=IMAGE_STAGING_COLLECTION_NAME,
     )
 
-    print(f"\nSigLIP similarity 매핑 반영 완료! 총 {len(text_chunks)}개 데이터 적재 완료.")
-    print(f"매핑 리포트 저장: {TEXT_IMAGE_MAPPING_REPORT_PATH}")
-    print(f"{IMAGE_COLLECTION_NAME} 적재 완료: {image_collection.count()}개 이미지")
+    temporary_report = TEXT_IMAGE_MAPPING_REPORT_PATH.with_suffix(".json.tmp")
+    temporary_report.write_text(
+        json.dumps(mapping_report, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    _promote_collection_pair(client)
+    temporary_report.replace(TEXT_IMAGE_MAPPING_REPORT_PATH)
+
+    print(f"텍스트 컬렉션 적재 완료: {len(text_chunks)}개")
+    print(f"이미지 컬렉션 적재 완료: {image_collection.count()}개")
+    print(f"매핑 보고서 저장: {TEXT_IMAGE_MAPPING_REPORT_PATH}")
+
 
 if __name__ == "__main__":
     build_multimodal_db_v2()

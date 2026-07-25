@@ -1,10 +1,14 @@
 import chromadb
 import requests
 import streamlit as st
-from PIL import Image
 from sentence_transformers import SentenceTransformer
 
-from paths import STAGE_CONTEXT_MAP_MANUAL_PATH, VECTOR_DB_DIR, configure_model_cache
+from paths import (
+    BGE_M3_MODEL_ID,
+    STAGE_CONTEXT_MAP_MANUAL_PATH,
+    VECTOR_DB_DIR,
+    configure_model_cache,
+)
 from rag_search import (
     ANSWER_TOP_K,
     IMAGE_COLLECTION_TOP_K,
@@ -26,7 +30,7 @@ from stage_classifier import (
 @st.cache_resource
 def load_resources():
     configure_model_cache()
-    embedder = SentenceTransformer("BAAI/bge-m3")
+    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
     text_collection, image_collection = open_rag_collections(client)
     return embedder, text_collection, image_collection
@@ -76,7 +80,7 @@ Do not invent facts.
         return f"Ollama 응답 형식 오류: {data}"
     except requests.exceptions.Timeout:
         return f"{model_id}가 답변을 생성하는 데 시간이 너무 오래 걸립니다."
-    except Exception as exc:
+    except (requests.RequestException, ValueError) as exc:
         return f"Ollama 연동 실패: {exc}"
 
 
@@ -85,7 +89,7 @@ def render_sidebar(model_id, model_label, image_collection):
         st.title("Intelligent Assistant")
         st.info(f"BGE-M3 + ChromaDB + {model_label}")
         st.write(f"**LLM:** {model_id}")
-        st.write("**Answer search:** text Top-5")
+        st.write(f"**Answer search:** text Top-{ANSWER_TOP_K}")
         st.write(f"**Image search:** text Top-{IMAGE_TEXT_TOP_K} + image DB Top-{IMAGE_COLLECTION_TOP_K}")
         st.write(f"**Displayed images:** Top-{IMAGE_RESULTS_LIMIT}")
         st.write(f"**Image DB:** {'enabled' if image_collection is not None else 'not built'}")
@@ -150,7 +154,7 @@ def render_stage_classification(classification):
 
 
 def render_answer_sources(retrieved_docs, retrieved_metas):
-    with st.expander("참조한 Top-5 매뉴얼 원문"):
+    with st.expander(f"참조한 Top-{ANSWER_TOP_K} 매뉴얼 원문"):
         for i, (doc, meta) in enumerate(zip(retrieved_docs, retrieved_metas), start=1):
             heading = meta.get("heading", "제목 없음")
             pages = meta.get("pages", "페이지 정보 없음")
@@ -166,12 +170,11 @@ def render_images(images):
         return
 
     for image_info in images:
-        image = Image.open(image_info["path"])
         caption = (
             f"[{image_info['rank']}순위 | score {image_info['score']:.3f}] "
             f"{image_info['name']} | {image_info['heading']} | Page {image_info['pages']}"
         )
-        st.image(image, use_container_width=True, caption=caption)
+        st.image(image_info["path"], use_container_width=True, caption=caption)
 
 
 def run_app(model_id, model_label, page_title):

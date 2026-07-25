@@ -1,0 +1,196 @@
+{
+  "method": {
+    "selection": "5-fold cross-validation; deployment values retuned on all 70 questions",
+    "primary_metric": "Image MRR",
+    "secondary_metric": "Image Recall@5",
+    "random_seed": 20260716,
+    "warning": "The 70 questions are reused for cross-validation. A separate external test set is still required for confirmatory reporting."
+  },
+  "score_normalization": {
+    "siglip_mode": "robust_cosine",
+    "robust_cosine_percentiles": [
+      -0.031964946538209915,
+      0.09408871829509735
+    ]
+  },
+  "recommended": {
+    "g3": {
+      "semantic_mode": "robust_cosine",
+      "bbox_weight": 0.0,
+      "siglip_weight": 1.0,
+      "weights": [
+        0.25,
+        0.15,
+        0.5,
+        0.05,
+        0.05
+      ],
+      "source_coefficient": 0.0
+    },
+    "g4": {
+      "min_score": 0.45,
+      "min_margin": 0.03,
+      "map_weights": [
+        0.5,
+        0.1,
+        0.4
+      ],
+      "query_scale": 0.0,
+      "rank_scale": 0.0,
+      "context_coefficient": 0.5,
+      "page_prior_coefficient": 0.25,
+      "rank_window": 120
+    },
+    "g4_text": {
+      "map_weights": [
+        0.55,
+        0.3,
+        0.15
+      ],
+      "stage_coefficient": 0.28
+    }
+  },
+  "unconstrained_performance_optimum": {
+    "g3": {
+      "semantic_mode": "relative_softmax",
+      "bbox_weight": 1.0,
+      "siglip_weight": 0.0,
+      "weights": [
+        0.362569,
+        0.49656,
+        0.047818,
+        0.02819,
+        0.064863
+      ],
+      "source_coefficient": 0.0
+    },
+    "g4": {
+      "min_score": 0.35,
+      "min_margin": 0.0,
+      "map_weights": [
+        0.529792,
+        0.040458,
+        0.42975
+      ],
+      "query_scale": 0.45,
+      "rank_scale": 0.5,
+      "context_coefficient": 0.5,
+      "page_prior_coefficient": 0.2,
+      "rank_window": 80
+    }
+  },
+  "cross_validation": {
+    "g3_unconstrained": {
+      "r1": 0.44285714285714284,
+      "r5": 0.7571428571428571,
+      "r10": 0.8,
+      "mrr": 0.5593424036281179
+    },
+    "g3_constrained": {
+      "r1": 0.37142857142857144,
+      "r5": 0.7571428571428571,
+      "r10": 0.8428571428571429,
+      "mrr": 0.5148412698412699
+    },
+    "g4_unconstrained": {
+      "r1": 0.42857142857142855,
+      "r5": 0.8571428571428571,
+      "r10": 0.9428571428571428,
+      "mrr": 0.5971201814058958
+    },
+    "g4_fixed_stage_threshold": {
+      "r1": 0.44285714285714284,
+      "r5": 0.8714285714285714,
+      "r10": 0.9285714285714286,
+      "mrr": 0.6065022675736963
+    },
+    "g4_text": {
+      "r1": 0.8428571428571429,
+      "r5": 0.9714285714285714,
+      "r10": 1.0,
+      "mrr": 0.8951587301587302
+    },
+    "folds": [
+      [
+        "Q02",
+        "Q12",
+        "Q16",
+        "Q24",
+        "Q32",
+        "Q33",
+        "Q35",
+        "Q38",
+        "Q39",
+        "Q43",
+        "Q48",
+        "Q51",
+        "Q53",
+        "Q58"
+      ],
+      [
+        "Q14",
+        "Q17",
+        "Q26",
+        "Q29",
+        "Q30",
+        "Q31",
+        "Q36",
+        "Q37",
+        "Q42",
+        "Q47",
+        "Q57",
+        "Q60",
+        "Q62",
+        "Q68"
+      ],
+      [
+        "Q07",
+        "Q08",
+        "Q11",
+        "Q18",
+        "Q19",
+        "Q23",
+        "Q25",
+        "Q34",
+        "Q40",
+        "Q45",
+        "Q46",
+        "Q63",
+        "Q64",
+        "Q66"
+      ],
+      [
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q13",
+        "Q15",
+        "Q20",
+        "Q21",
+        "Q41",
+        "Q44",
+        "Q50",
+        "Q56",
+        "Q59",
+        "Q61",
+        "Q69"
+      ],
+      [
+        "Q01",
+        "Q03",
+        "Q09",
+        "Q10",
+        "Q22",
+        "Q27",
+        "Q28",
+        "Q49",
+        "Q52",
+        "Q54",
+        "Q55",
+        "Q65",
+        "Q67",
+        "Q70"
+      ]
+    ]
+  }
+}

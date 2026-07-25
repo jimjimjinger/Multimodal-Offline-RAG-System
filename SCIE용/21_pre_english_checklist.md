@@ -13,8 +13,6 @@
 | 실험 환경 표 추가 | 완료 | `19_paper_draft.md` |
 | 로컬 LLM 모델 표 추가 | 완료 | `19_paper_draft.md` |
 | Qwen/Gemma/Llama 응답 생성 및 rubric 기반 1차 평가 | 완료 | `22_response_quality_eval_results.md`, `excel/22_response_quality_eval_results.xlsx` |
-| 연구자 검토용 체크리스트 생성 | 완료 | `31_researcher_review_checklist.md`, `excel/31_researcher_review_checklist.xlsx` |
-| G4 우선 검토 대상 연구자 수동 검토 | 완료 | `31_researcher_review_checklist.md`, `excel/31_researcher_review_checklist.xlsx` |
 | G4 context map 구축 절차 정리 | 완료 | `33_context_map_protocol.md` |
 | 논문 표/그림 캡션 초안 작성 | 완료 | `32_tables_figures_captions.md` |
 | IEEE Access 준비 체크리스트 작성 | 완료 | `34_ieee_access_readiness_checklist.md` |

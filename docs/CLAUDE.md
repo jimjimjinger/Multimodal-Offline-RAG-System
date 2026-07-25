@@ -26,6 +26,7 @@ data/raw/*.pdf
   → src/unified_extractor.py   # 텍스트 + 이미지 추출
   → src/text_filter.py         # 텍스트 정제
   → scripts/download_siglip.py # SigLIP 로컬 저장
+  → scripts/download_bge_m3.py # BGE-M3 로컬 캐시 저장
   → SigLIP 필터링              # 의미 없는 이미지 제거
   → data/processed/final_refined_data/ # 정제된 이미지 보관
   → src/embedding_text_image.py        # 텍스트 컬렉션 + 이미지 전용 컬렉션 생성
@@ -43,6 +44,7 @@ data/raw/*.pdf
 | `src/embedding_text_image.py` | 임베딩 + ChromaDB 적재 |
 | `src/text_filter.py` | 텍스트 정제 및 청킹 |
 | `scripts/download_siglip.py` | SigLIP 모델 로컬 다운로드 |
+| `scripts/download_bge_m3.py` | BGE-M3 모델 로컬 다운로드 |
 | `data/processed/text_chunks.json` | 추출된 텍스트 청크 (총 600개) |
 | `data/processed/final_processing_report.json` | SigLIP 필터링 결과 (이미지 메타데이터) |
 | `data/vector_db/rag_db/` | ChromaDB 벡터 DB 저장 폴더 |
@@ -54,4 +56,4 @@ data/raw/*.pdf
 1. **완전 오프라인 동작**: 인터넷 없이도 실행 가능 (Ollama + 로컬 모델)
 2. **경량화 우선**: 4-bit 양자화 7B~9B급 LLM, 로컬 임베딩, 최소 의존성
 3. **멀티모달 응답**: 텍스트 답변 + 연관 기술 도식(이미지) 동시 제공
-4. **정밀 매핑**: bbox + SigLIP similarity + 이미지 전용 검색 컬렉션으로 텍스트-이미지 연결
+4. **정밀 매핑**: BBox 거리로 공간 후보를 제한하고 SigLIP 의미 유사도로 후보를 순위화한 뒤 이미지 전용 검색 컬렉션과 연결

@@ -91,21 +91,24 @@ def classify_stage(
             {
                 "stage": profile["stage"],
                 "stage_id": profile["stage_id"],
-                "score": round(score, 4),
+                "score": score,
             }
         )
 
     candidates.sort(key=lambda item: item["score"], reverse=True)
-    top_candidates = candidates[: max(1, top_k)]
-    best = top_candidates[0]
-    second_score = top_candidates[1]["score"] if len(top_candidates) > 1 else 0.0
-    margin = round(best["score"] - second_score, 4)
+    best = candidates[0]
+    second_score = candidates[1]["score"] if len(candidates) > 1 else 0.0
+    margin = best["score"] - second_score
     used = best["score"] >= min_score and margin >= min_margin
+    top_candidates = [
+        {**candidate, "score": round(candidate["score"], 4)}
+        for candidate in candidates[: max(1, top_k)]
+    ]
     return {
         "stage_label": best["stage"] if used else None,
         "predicted_stage": best["stage"],
-        "score": best["score"],
-        "margin": margin,
+        "score": round(best["score"], 4),
+        "margin": round(margin, 4),
         "used": used,
         "top_candidates": top_candidates,
         "reason": "score and margin above threshold" if used else "score or margin below threshold",

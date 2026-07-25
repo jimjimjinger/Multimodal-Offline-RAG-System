@@ -44,7 +44,7 @@ Proposed Framework 첫 부분
 - extracted image
 - page metadata
 - nearby text
-- text-image mapping score
+- BBox candidate filtering and SigLIP text-image mapping score
 - vector DB indexing
 
 ### 논문 위치
@@ -62,7 +62,7 @@ G3가 단순 이미지 검색이 아니라 여러 점수를 결합한다는 점�
 - text retrieval score
 - image retrieval score
 - page proximity
-- text-image mapping score
+- BBox-filtered SigLIP text-image mapping score
 - final image ranking
 
 ### 논문 위치
@@ -114,9 +114,9 @@ Context-aware Re-ranking Method
 
 ### 강조 포인트
 
-- G4 Image Recall@5: 75.7%
+- G4 Image Recall@5: 77.1%
 - G4 Image Recall@10: 87.1%
-- G4 Image MRR: 0.539
+- G4 Image MRR: 0.608
 
 ## Figure 6. G4 개선 사례
 

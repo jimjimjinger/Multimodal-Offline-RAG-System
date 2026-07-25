@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 from docx import Document
-from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -16,9 +16,11 @@ from docx.shared import Inches, Pt, RGBColor
 ROOT = Path(__file__).resolve().parents[1]
 SCIE = ROOT / "SCIE용"
 SOURCE_MD = SCIE / "19_paper_draft.md"
+SOURCE_MD_EN = SCIE / "19_paper_draft_english.md"
 OUT_DIR = SCIE / "논문"
 FIG_DIR = SCIE / "산출물" / "도식"
 OUT_DOCX = OUT_DIR / "원문 초안.docx"
+OUT_DOCX_EN = OUT_DIR / "영문 초안.docx"
 FIG1 = FIG_DIR / "figure1_overall_architecture.png"
 FIG2 = FIG_DIR / "figure2_g4_reranking.png"
 
@@ -190,7 +192,7 @@ def create_figure_1() -> None:
     draw_box(draw, text_extract, "Text Extraction and Chunking", [], fill=(236, 244, 251), title_size=22)
     draw_box(draw, image_extract, "Image Extraction and Refinement", [], fill=(236, 244, 251), title_size=22)
     draw_box(draw, bge, "BGE-M3 Text Embeddings", [], title_size=22)
-    draw_box(draw, siglip, "SigLIP Features", ["Image/Text-Image Mapping"], title_size=22, detail_size=17)
+    draw_box(draw, siglip, "Text-Image Association", ["BBox candidate filtering", "SigLIP semantic ranking"], title_size=22, detail_size=17)
     draw_box(draw, chroma, "ChromaDB Text Collection", [], fill=(242, 246, 249), title_size=22)
     draw_box(draw, mapping, "Image Metadata and Mapping Table", [], fill=(242, 246, 249), title_size=22)
     draw_box(draw, dataset, "Processed Dataset", ["text chunks + images + labels"], fill=(236, 244, 251), title_size=22, detail_size=17)
@@ -264,11 +266,11 @@ def create_figure_2() -> None:
     xs = [80 + i * (w + gap) for i in range(7)]
     boxes = [
         ("User Query", []),
-        ("G3 Candidates", ["text candidates", "image candidates", "base scores"]),
+        ("G3 Candidates", ["text + image retrieval", "page proximity", "precomputed BBox-filtered SigLIP mapping"]),
         ("Stage Estimation", ["compare query", "with stage profiles"]),
         ("Stage Context Map", ["page range", "section heading", "keywords"]),
-        ("Context Score", ["page match", "section match", "keyword match"]),
-        ("Score Update", ["final score = base score", "+ lambda * context score"]),
+        ("Context Score", ["0.50 page match", "0.40 section match", "0.10 keyword match"]),
+        ("Score Update", ["text = base + 0.28 * stage", "image = base + 0.50 * stage * rank", "+ 0.25 * stage-page"]),
         ("Re-ranked Top-k Evidence", ["text evidence", "image evidence"]),
     ]
     for idx, x in enumerate(xs):
@@ -531,6 +533,7 @@ def configure_document(doc: Document) -> None:
     normal.font.color.rgb = INK
     normal.paragraph_format.space_after = Pt(6)
     normal.paragraph_format.line_spacing = 1.10
+    normal.paragraph_format.widow_control = True
 
     for name, size, color, before, after in [
         ("Heading 1", 16, BLUE, 16, 8),
@@ -546,6 +549,8 @@ def configure_document(doc: Document) -> None:
         style.paragraph_format.space_before = Pt(before)
         style.paragraph_format.space_after = Pt(after)
         style.paragraph_format.line_spacing = 1.10
+        style.paragraph_format.keep_with_next = True
+        style.paragraph_format.widow_control = True
 
     caption = styles["Caption"]
     caption.font.name = "Calibri"
@@ -672,20 +677,31 @@ def add_figure(doc: Document, image_path: Path, caption: str) -> None:
 def add_algorithm(doc: Document) -> None:
     title = doc.add_paragraph()
     set_paragraph_style(title, before=8, after=4)
+    title.paragraph_format.keep_with_next = True
     r = title.add_run("Algorithm 1. Context-aware multimodal re-ranking in G4")
     set_run_font(r, size=10.5, bold=True, color=DARK_BLUE)
 
     lines = [
-        "Input: user query q, G3 text candidates T, G3 image candidates I, stage context map M",
-        "Output: re-ranked text and image evidence E",
-        "1: Encode q using BGE-M3.",
-        "2: Compare q with stage context profiles and estimate the most relevant stage s.",
-        "3: If the confidence score or top-1/top-2 margin is below the threshold, return the G3 ranking.",
-        "4: Retrieve the page ranges, section headings, and keywords associated with s from M.",
-        "5: For each candidate c in T and I, compute page range, section, and keyword context scores.",
-        "6: Combine the G3 retrieval score and the stage context score.",
-        "7: Sort candidates by the final score and return Top-k text evidence and image evidence.",
-        "Constraint: question IDs, correct image filenames, and correct chunk IDs are not used in M.",
+        "Input: query q; G3 text candidates T; G3 image candidates I; stage profiles and context map M",
+        "Output: re-ranked Top-k text candidates T' and image candidates I'",
+        "1: e_q <- BGE-M3(q); obtain the two highest cosine similarities a1 >= a2 and stage s*.",
+        "2: if a1 < 0.45 or (a1 - a2) < 0.03 then return Top-k(T), Top-k(I).",
+        "3: Load stage page ranges, section terms, keyword terms, and profile weight w_s from M[s*].",
+        "4: Add valid images within the stage page ranges to I.",
+        "5: for each text candidate t in T do",
+        "6:     C_t <- w_s(0.55 P_t + 0.30 K_t + 0.15 H_t).",
+        "7:     F_t <- [1 - (rank_G3(t) - 1) / |T|] + 0.28 C_t.",
+        "8: for each image candidate i in I do",
+        "9:     B_i <- 0.25 V_i + 0.15 L_i + 0.50 N_i + 0.05 M_i + 0.05 D_i.",
+        "10:    C_i <- w_s(0.50 P_i + 0.10 K_i + 0.40 H_i).",
+        "11:    Let rank_B(i) be the rank obtained by sorting all expanded image candidates by B_i.",
+        "12:    rho_i <- 1 - (rank_B(i) - 1) / 120 when rank_B(i) <= 120;",
+        "           otherwise rho_i <- 0.35 if P_i > 0, and 0 otherwise.",
+        "13:    F_i <- B_i + 0.50 C_i rho_i + 0.25 P_i.",
+        "14: Sort T by F_t and I by F_i in descending order; return their Top-k candidates.",
+        "P, K, and H denote normalized stage-page, keyword, and section-heading match scores.",
+        "V, L, N, M, and D denote image-only, text-rank, page-proximity, SigLIP-mapping, and diagram scores.",
+        "Leakage control: M contains no question IDs, correct image filenames, or correct chunk IDs.",
     ]
     table = doc.add_table(rows=1, cols=1)
     table.style = "Table Grid"
@@ -696,11 +712,13 @@ def add_algorithm(doc: Document) -> None:
     set_cell_margins(cell, top=120, bottom=120, start=160, end=160)
     p = cell.paragraphs[0]
     p.paragraph_format.space_after = Pt(0)
+    p.paragraph_format.keep_together = True
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     for idx, line in enumerate(lines):
         if idx:
             p.add_run("\n")
         run = p.add_run(line)
-        set_run_font(run, name="Consolas", size=9.2, color=RGBColor(45, 45, 45))
+        set_run_font(run, name="Consolas", size=8.2, color=RGBColor(45, 45, 45))
     doc.add_paragraph()
 
 
@@ -708,12 +726,19 @@ def clean_markdown_line(line: str) -> str:
     return line.rstrip().replace("  ", " ")
 
 
-def build_docx() -> None:
+def build_docx(
+    source_md: Path = SOURCE_MD,
+    out_docx: Path = OUT_DOCX,
+    language: str = "ko",
+) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    create_figure_1()
-    create_figure_2()
+    # Figures are reviewed manuscript assets. Regenerating them here would
+    # overwrite the approved diagrams used by the paper.
+    for figure_path in (FIG1, FIG2):
+        if not figure_path.exists():
+            raise FileNotFoundError(f"Missing manuscript figure: {figure_path}")
 
-    source = SOURCE_MD.read_text(encoding="utf-8").splitlines()
+    source = source_md.read_text(encoding="utf-8").splitlines()
     doc = Document()
     configure_document(doc)
 
@@ -727,28 +752,41 @@ def build_docx() -> None:
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     subtitle.paragraph_format.space_after = Pt(14)
-    run = subtitle.add_run("국문 작업 초안 | IEEE Access 투고용 구조")
+    subtitle_text = (
+        "English Manuscript Draft | Structured for IEEE Access"
+        if language == "en"
+        else "국문 학술 초안 | IEEE Access 투고용 구조"
+    )
+    run = subtitle.add_run(subtitle_text)
     set_run_font(run, size=10.5, color=MUTED)
 
     # Keep only manuscript sections and references. Internal notes are excluded.
     wanted: list[str] = []
-    capture = False
-    capture_refs = False
-    for line in source:
-        if line.startswith("## 초록"):
-            capture = True
-        if line.startswith("## 9. 현재 초안"):
-            capture = False
-        if line.startswith("## 10. 참고문헌"):
-            capture_refs = True
-            wanted.append("## 참고문헌")
-            continue
-        if line.startswith("## 11. 논문에 사용할 핵심 파일"):
-            capture_refs = False
-        if capture or capture_refs:
-            if line.startswith(">"):
+    if language == "en":
+        capture = False
+        for line in source:
+            if line.startswith("## Abstract"):
+                capture = True
+            if capture and not line.startswith(">"):
+                wanted.append(line)
+    else:
+        capture = False
+        capture_refs = False
+        for line in source:
+            if line.startswith("## 초록"):
+                capture = True
+            if line.startswith("## 9."):
+                capture = False
+            if line.startswith("## 10. 참고문헌"):
+                capture_refs = True
+                wanted.append("## 참고문헌")
                 continue
-            wanted.append(line)
+            if line.startswith("## 11. 논문에 사용할 핵심 파일"):
+                capture_refs = False
+            if capture or capture_refs:
+                if line.startswith(">"):
+                    continue
+                wanted.append(line)
 
     i = 0
     current_heading = ""
@@ -850,9 +888,16 @@ def build_docx() -> None:
     doc.core_properties.author = "Jimin"
     doc.core_properties.subject = "SCIE/IEEE Access manuscript draft"
     doc.core_properties.keywords = "multimodal RAG, collaborative robot training, context-aware retrieval"
-    doc.save(OUT_DOCX)
+    doc.save(out_docx)
 
 
 if __name__ == "__main__":
-    build_docx()
-    print(OUT_DOCX)
+    parser = argparse.ArgumentParser(description="Build the Korean or English manuscript draft.")
+    parser.add_argument("--language", choices=("ko", "en"), default="ko")
+    args = parser.parse_args()
+    if args.language == "en":
+        build_docx(SOURCE_MD_EN, OUT_DOCX_EN, language="en")
+        print(OUT_DOCX_EN)
+    else:
+        build_docx()
+        print(OUT_DOCX)

@@ -2,7 +2,7 @@
 
 ## 목적
 
-이 문서는 현재 SCIE/IEEE Access 원고로 전환하기 전에 남은 작업을 구분하기 위한 체크리스트이다. 연구자 검토 완료 항목과, 앞으로 남은 문서/표/그림 작성 항목을 분리한다.
+이 문서는 현재 SCIE/IEEE Access 원고로 전환하기 전에 완료된 항목과 앞으로 남은 문서·표·그림 작성 항목을 구분하기 위한 체크리스트이다.
 
 ## 현재 완료된 항목
 
@@ -17,8 +17,6 @@
 | G1/G2/G3/G4 검색 성능 평가 | 완료 | `15_g1_g2_g3_g4_results.md` |
 | G4 개선/실패 사례 분석 | 완료 | `16_g4_case_analysis.md` |
 | 응답 품질 rubric 기반 1차 평가 | 완료 | `22_response_quality_eval_results.md` |
-| 연구자 검토용 체크리스트 생성 | 완료 | `31_researcher_review_checklist.md` |
-| G4 우선 검토 대상 연구자 검토 | 완료 | `31_researcher_review_checklist.md`, `excel/31_researcher_review_checklist.xlsx` |
 | 국문 논문 초안 작성 | 완료 | `19_paper_draft.md` |
 | 참고문헌 후보 정리 | 완료 | `20_reference_candidates.md` |
 | 표/그림 캡션 초안 작성 | 완료 | `32_tables_figures_captions.md` |
@@ -44,9 +42,9 @@
 
 | 피해야 할 표현 | 이유 | 대체 표현 |
 |---|---|---|
-| 전체 630개 응답을 전문가가 모두 재채점했다 | 연구자 검토는 G4 우선 검토 대상 54개에 대해 수행됨 | AI-assisted rubric-based evaluation on 630 responses, supplemented by researcher review of 54 priority G4 cases |
+| 전체 630개 응답을 전문가가 평가했다 | 전문가 평가를 수행하지 않음 | A rubric-based auxiliary analysis was conducted on 630 responses |
 | G4가 응답 품질을 크게 개선했다 | 최신 결과에서 G4-Qwen은 G3-Qwen보다 소폭 낮음 | G4 improved retrieval performance while maintaining comparable response quality |
-| 이미지 검색 문제가 해결되었다 | Image R@1은 아직 37.1% | G4 improved image retrieval ranking but still has limitations in image-level discrimination |
+| 이미지 검색 문제가 해결되었다 | Image R@1은 44.3%로 절반 미만 | G4 improved image retrieval ranking but still has limitations in image-level discrimination |
 | 8GB 이하 환경에서 검증했다 | 정량 실험은 24GB 개발 노트북에서 수행 | The system is designed for resource-constrained local deployment, while full quantitative evaluation was conducted on a development laptop |
 | CLIP을 사용했다 | 실제 구현은 SigLIP 기반 신호 사용 | CLIP is discussed as related work; SigLIP is used for image-text similarity signals |
 

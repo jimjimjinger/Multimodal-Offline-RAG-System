@@ -8,7 +8,15 @@
 - `create_scie_context_map.py`: 질의셋 기반 초안 context map 생성 코드입니다.
 - `create_g4_context_review.py`: manual/oracle G4 검토표 생성 코드입니다.
 - `apply_g4_manual_overrides.py`: manual context map 보정용 일회성 코드입니다.
+- `evaluate_models.py`: 초기 Qwen/Gemma/Llama 생성 응답 일괄 평가 코드입니다.
+- `create_image_eval_workbook.py`: 초기 이미지 수동 평가표 생성 코드입니다.
+- `create_manual_eval_workbook.py`: 초기 모델별 수동 평가표 생성 코드입니다.
 
 최종 비교 실험은 `scripts/evaluate_stage_classifier.py`,
 `scripts/evaluate_scie_g4_auto_retrieval.py`, `scripts/evaluate_scie_all_groups.py`,
 `scripts/evaluate_response_quality.py`를 기준으로 실행합니다.
+
+논문용 Figure 생성 코드는 `scripts/figures/`에 모아 두었습니다.
+# Additional archived utility
+
+- `build_image_collection.py`: 이전 이미지 전용 컬렉션 재생성 스크립트입니다.

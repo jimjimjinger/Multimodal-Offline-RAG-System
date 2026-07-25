@@ -5,9 +5,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCIE_DIR = next(path for path in PROJECT_ROOT.iterdir() if path.is_dir() and path.name.startswith("SCIE"))
-SCIE_DATA_DIR = SCIE_DIR / "data"
-SCIE_EXCEL_DIR = SCIE_DIR / "excel"
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from paths import SCIE_DATA_DIR, SCIE_EXCEL_DIR  # noqa: E402
+
+
 DEFAULT_CSV_PATH = SCIE_DATA_DIR / "01_question_stage_labels.csv"
 DEFAULT_OUTPUT_PATH = SCIE_EXCEL_DIR / "01_question_stage_labels.xlsx"
 DEFAULT_SHEET_NAME = "\uc2e4\uc2b5 \ub2e8\uacc4 \ub77c\ubca8"
