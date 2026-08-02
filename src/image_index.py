@@ -3,8 +3,6 @@ import math
 import re
 from pathlib import Path
 
-from chromadb.errors import NotFoundError
-
 from paths import FINAL_IMAGES_DIR, project_relative
 
 
@@ -49,23 +47,11 @@ def _bbox_distance(chunk, image):
     return math.hypot(text_center_x - image_center_x, text_center_y - image_center_y)
 
 
-def _chunk_page_index(text_chunks):
-    index = {}
-    for chunk_id, chunk in enumerate(text_chunks):
-        for page in _chunk_pages(chunk):
-            index.setdefault(page, []).append((chunk_id, chunk))
-    return index
-
-
-def _related_chunks_for_image(image, chunk_page_index):
+def _related_chunks_for_image(image, text_chunks):
     image_page = int(image["page"])
     scored = []
-    nearby_chunks = {}
-    for page in range(image_page - 1, image_page + 2):
-        for chunk_id, chunk in chunk_page_index.get(page, []):
-            nearby_chunks[chunk_id] = chunk
 
-    for chunk_id, chunk in nearby_chunks.items():
+    for chunk_id, chunk in enumerate(text_chunks):
         pages = _chunk_pages(chunk)
         if not pages:
             continue
@@ -83,46 +69,45 @@ def _related_chunks_for_image(image, chunk_page_index):
 
 
 def _build_image_document(image, related_chunks):
-    parts = []
+    parts = [
+        f"image file: {image['file_name']}",
+        f"manual page: {image['page']}",
+        f"diagram confidence: {image.get('siglip_score', 0.0)}",
+    ]
 
-    for _, _, chunk in related_chunks:
+    for rank, (_, chunk_id, chunk) in enumerate(related_chunks, start=1):
         heading = _clean_text(chunk.get("heading"))
         text = _clean_text(chunk.get("text"))[:IMAGE_TEXT_MAX_CHARS]
-        parts.append(f"{heading}. {text}" if heading else text)
+        pages = ", ".join(str(page) for page in chunk.get("pages", []))
+        parts.append(
+            f"nearby text {rank}: chunk_{chunk_id}, pages {pages}, heading {heading}. {text}"
+        )
 
-    return "\n".join(parts) or "technical robot diagram"
+    return "\n".join(parts)
 
 
-def build_image_search_collection(
-    text_chunks,
-    image_metadata,
-    embedding_model,
-    client,
-    reset=True,
-    collection_name=IMAGE_COLLECTION_NAME,
-):
+def build_image_search_collection(text_chunks, image_metadata, embedding_model, client, reset=True):
     if reset:
         try:
-            client.delete_collection(name=collection_name)
-        except NotFoundError:
+            client.delete_collection(name=IMAGE_COLLECTION_NAME)
+        except Exception:
             pass
 
     collection = client.get_or_create_collection(
-        name=collection_name,
+        name=IMAGE_COLLECTION_NAME,
         configuration=HNSW_CONFIGURATION,
     )
 
     ids = []
     documents = []
     metadatas = []
-    chunk_page_index = _chunk_page_index(text_chunks)
 
     for image in image_metadata:
         image_path = FINAL_IMAGES_DIR / image["file_name"]
         if not image_path.exists():
             continue
 
-        related_chunks = _related_chunks_for_image(image, chunk_page_index)
+        related_chunks = _related_chunks_for_image(image, text_chunks)
         document = _build_image_document(image, related_chunks)
 
         chunk_ids = [f"chunk_{chunk_id}" for _, chunk_id, _ in related_chunks]
@@ -142,9 +127,6 @@ def build_image_search_collection(
                 "source_pages": json.dumps(pages, ensure_ascii=False),
             }
         )
-
-    if not documents:
-        return collection
 
     embeddings = embedding_model.encode(
         documents,

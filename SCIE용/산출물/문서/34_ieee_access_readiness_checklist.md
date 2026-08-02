@@ -44,7 +44,7 @@
 |---|---|---|
 | 전체 630개 응답을 전문가가 평가했다 | 전문가 평가를 수행하지 않음 | A rubric-based auxiliary analysis was conducted on 630 responses |
 | G4가 응답 품질을 크게 개선했다 | 최신 결과에서 G4-Qwen은 G3-Qwen보다 소폭 낮음 | G4 improved retrieval performance while maintaining comparable response quality |
-| 이미지 검색 문제가 해결되었다 | Image R@1은 44.3%로 절반 미만 | G4 improved image retrieval ranking but still has limitations in image-level discrimination |
+| 이미지 검색 문제가 해결되었다 | Image R@1은 48.6%로 절반 미만 | G4 improved image retrieval ranking but still has limitations in image-level discrimination |
 | 8GB 이하 환경에서 검증했다 | 정량 실험은 24GB 개발 노트북에서 수행 | The system is designed for resource-constrained local deployment, while full quantitative evaluation was conducted on a development laptop |
 | CLIP을 사용했다 | 실제 구현은 SigLIP 기반 신호 사용 | CLIP is discussed as related work; SigLIP is used for image-text similarity signals |
 

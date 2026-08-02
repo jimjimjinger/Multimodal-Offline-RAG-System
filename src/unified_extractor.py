@@ -16,21 +16,9 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MIN_SIZE = 120
 ICON_ASPECT_RATIO_TOLERANCE = 0.1
 LOGO_FREQUENCY_THRESHOLD = 0.1
-MIN_SLICE_HEIGHT = 50
+MIN_SLICE_HEIGHT = 50 
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def classify_siglip_scores(scores):
-    """Compare the two prompt scores used by the legacy relative filter."""
-    blank_score = scores[0].item()
-    diagram_score = scores[1].item()
-    return {
-        "accepted": diagram_score > blank_score,
-        "blank_score": blank_score,
-        "diagram_score": diagram_score,
-    }
-
 
 # 이미지 데이터를 바탕으로 고유한 암호(지문)를 생성하여, 전체 문서에서 똑같은 이미지가 중복해서 등장하는지 식별하는 함수
 def get_image_hash(image_bytes):
@@ -42,27 +30,27 @@ def is_blank_or_solid_image(image_bytes):
         img_pil = Image.open(io.BytesIO(image_bytes))
         if img_pil.mode in ('RGBA', 'LA') or (img_pil.mode == 'P' and 'transparency' in img_pil.info):
             alpha = img_pil.convert('RGBA').split()[-1]
-            if alpha.getextrema() == (0, 0):
+            if alpha.getextrema() == (0, 0): 
                 return True
-
+                
         width, height = img_pil.size
         if width > 10 and height > 10:
             img_pil = img_pil.crop((5, 5, width-5, height-5))
 
         img_gray = img_pil.convert("L")
         stat = ImageStat.Stat(img_gray)
-
+        
         if stat.mean[0] > 250 or stat.mean[0] < 5: return True
         if stat.stddev[0] < 5.0: return True
         return False
-    except: return True
+    except: return False
 
 # 문서 내 글자의 위치를 절취선으로 활용하여, 여러 개가 하나로 뭉쳐진 거대한 이미지를 개별 도면으로 정밀하게 잘라내는 함수
 def split_image_by_text_walls(page, image_bytes, img_bbox, ext):
     # 데이터 그림으로 변환
     try: img_pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except: return [{"bytes": image_bytes, "bbox": img_bbox, "ext": ext, "width": 0, "height": 0}]
-
+    
     # PDF와 실제 이미지 간의 크기 비율(Scale) 계산
     pdf_img_height = img_bbox[3] - img_bbox[1]
     if pdf_img_height <= 0:
@@ -73,7 +61,7 @@ def split_image_by_text_walls(page, image_bytes, img_bbox, ext):
     cut_zones = []
 
     for b in blocks:
-        if b[6] == 0:
+        if b[6] == 0: 
             bx0, by0, bx1, by1 = b[:4] # 텍스트가 이미지 영역 안에 들어와 있는지 확인
             if bx1 > img_bbox[0] and bx0 < img_bbox[2]:
                 if by0 > img_bbox[1] + 5 and by1 < img_bbox[3] - 5:
@@ -87,7 +75,7 @@ def split_image_by_text_walls(page, image_bytes, img_bbox, ext):
     # 이전 글자와 지금 글자가 5포인트 이내로 바짝 붙어있다면 한 덩어리로 합침
     for current in cut_zones[1:]:
         prev = merged_cuts[-1]
-        if current[0] <= prev[1] + 5:
+        if current[0] <= prev[1] + 5: 
             merged_cuts[-1] = (prev[0], max(prev[1], current[1]))
         else:
             merged_cuts.append(current)
@@ -98,33 +86,33 @@ def split_image_by_text_walls(page, image_bytes, img_bbox, ext):
     for cut in merged_cuts:
         text_top, text_bottom = cut[0], cut[1]
         part_pdf_height = text_top - current_pdf_y
-
+        
         # 조각이 너무 작지 않은지 확인
         if part_pdf_height > (MIN_SLICE_HEIGHT / scale_y):
             crop_y0 = int((current_pdf_y - img_bbox[1]) * scale_y)
             crop_y1 = int((text_top - img_bbox[1]) * scale_y)
-
+            
             # 자르기
             cropped_pil = img_pil.crop((0, crop_y0, img_pil.width, crop_y1))
             img_byte_arr = io.BytesIO()
             cropped_pil.save(img_byte_arr, format='PNG')
-
+            
             sub_images.append({
                 "bytes": img_byte_arr.getvalue(),
                 "bbox": [img_bbox[0], current_pdf_y, img_bbox[2], text_top],
                 "ext": "png", "width": cropped_pil.width, "height": cropped_pil.height
             })
-        current_pdf_y = text_bottom
+        current_pdf_y = text_bottom 
 
     # 마지막 글자를 자르고도 밑에 이미지가 넉넉히 남아있다면 자르고 담기
     if img_bbox[3] - current_pdf_y > (MIN_SLICE_HEIGHT / scale_y):
         crop_y0 = int((current_pdf_y - img_bbox[1]) * scale_y)
         crop_y1 = img_pil.height
-
+        
         cropped_pil = img_pil.crop((0, crop_y0, img_pil.width, crop_y1))
         img_byte_arr = io.BytesIO()
         cropped_pil.save(img_byte_arr, format='PNG')
-
+        
         sub_images.append({
             "bytes": img_byte_arr.getvalue(),
             "bbox": [img_bbox[0], current_pdf_y, img_bbox[2], img_bbox[3]],
@@ -136,7 +124,7 @@ def split_image_by_text_walls(page, image_bytes, img_bbox, ext):
 def run_unified_pipeline():
     doc = fitz.open(PDF_PATH)
     total_pages = len(doc)
-
+    
     print(f"[{DEVICE}] 환경에서 SigLIP 모델을 로드 중...")
     processor = SiglipProcessor.from_pretrained(str(MODEL_PATH))
     model = SiglipModel.from_pretrained(str(MODEL_PATH)).to(DEVICE)
@@ -154,20 +142,20 @@ def run_unified_pipeline():
             xref = img[0]
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
-
+            
             image_rects = page.get_image_rects(xref)
             bbox = [image_rects[0].x0, image_rects[0].y0, image_rects[0].x1, image_rects[0].y1] if image_rects else [0, 0, 0, 0]
-
+            
             sliced_images = split_image_by_text_walls(page, image_bytes, bbox, base_image["ext"])
-
+            
             for sub_idx, sub_img in enumerate(sliced_images):
                 img_hash = get_image_hash(sub_img["bytes"])
                 obj_key = (img_hash, sub_img["width"], sub_img["height"])
                 occurrence_map[obj_key] = occurrence_map.get(obj_key, 0) + 1
-
+                
                 raw_extracted_images.append({
                     "page": page_index + 1,
-                    "img_index": f"{img_index}_{sub_idx}",
+                    "img_index": f"{img_index}_{sub_idx}", 
                     "bytes": sub_img["bytes"],
                     "ext": sub_img["ext"],
                     "width": sub_img["width"],
@@ -203,17 +191,16 @@ def run_unified_pipeline():
         with torch.no_grad():
             outputs = model(**inputs)
             probs = outputs.logits_per_image.softmax(dim=1)
+        
+        is_diagram_prob = probs[0][1].item()
 
-        classification = classify_siglip_scores(probs[0])
-        is_diagram_prob = classification["diagram_score"]
-
-        if classification["accepted"]:
+        if is_diagram_prob > 0.5:
             file_name = f"page_{img_data['page']}_img_{img_data['img_index']}.{img_data['ext']}"
             save_path = OUTPUT_DIR / file_name
-
+            
             with open(save_path, "wb") as f:
                 f.write(img_data["bytes"])
-
+            
             final_metadata.append({
                 "file_name": file_name,
                 "page": img_data["page"],

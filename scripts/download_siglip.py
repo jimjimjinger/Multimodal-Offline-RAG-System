@@ -1,31 +1,32 @@
 import sys
 from pathlib import Path
 
+from transformers import SiglipProcessor, SiglipModel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from paths import SIGLIP_MODEL_DIR, configure_model_cache  # noqa: E402
+from paths import SIGLIP_MODEL_DIR
 
+# 1. 모델을 저장할 로컬 폴더
+local_dir = SIGLIP_MODEL_DIR
+model_name = "google/siglip-base-patch16-224"
 
-def main():
-    model_name = "google/siglip-base-patch16-224"
-    configure_model_cache(offline=False)
+local_dir.mkdir(parents=True, exist_ok=True)
 
-    from transformers import SiglipModel, SiglipProcessor
+print("모델 다운로드를 시작합니다. (명시적 클래스 사용)")
 
-    SIGLIP_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-
-    print("SigLIP 모델 다운로드를 시작합니다.")
+try:
+    # AutoProcessor 대신 SiglipProcessor를 직접 사용합니다 (에러 방지)
     processor = SiglipProcessor.from_pretrained(model_name)
     model = SiglipModel.from_pretrained(model_name)
-    model.config.text_config.bos_token_id = processor.tokenizer.bos_token_id
-    model.config.text_config.eos_token_id = processor.tokenizer.eos_token_id
-    model.config.text_config.pad_token_id = processor.tokenizer.pad_token_id
-    processor.save_pretrained(str(SIGLIP_MODEL_DIR))
-    model.save_pretrained(str(SIGLIP_MODEL_DIR))
-    print(f"모델 저장 완료: {SIGLIP_MODEL_DIR.resolve()}")
 
+    # 로컬에 저장
+    processor.save_pretrained(str(local_dir))
+    model.save_pretrained(str(local_dir))
+    
+    print(f"✅ 성공! 모델 가중치가 '{local_dir.resolve()}'에 저장되었습니다.")
 
-if __name__ == "__main__":
-    main()
+except Exception as e:
+    print(f"❌ 에러 발생: {e}")
+    print("\n💡 팁: 'pip install sentencepiece'를 터미널에 입력하고 다시 실행해보세요.")

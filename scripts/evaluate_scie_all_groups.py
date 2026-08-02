@@ -18,14 +18,12 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from create_scie_stage_label_workbook import write_workbook  # noqa: E402
 from evaluate_scie_retrieval import (  # noqa: E402
+    PARTIAL,
     TEXT_TOP_K,
-    both_at,
-    clean_csv_rows,
-    summarize_rank,
+    reciprocal_rank,
     text_rank,
 )
 from paths import (  # noqa: E402
-    BGE_M3_MODEL_ID,
     SCIE_DATA_DIR,
     SCIE_DIR,
     SCIE_EXCEL_DIR,
@@ -33,7 +31,7 @@ from paths import (  # noqa: E402
     VECTOR_DB_DIR,
     configure_model_cache,
 )
-from rag_search import TEXT_COLLECTION_NAME, query_first  # noqa: E402
+from rag_search import open_rag_collections, query_first  # noqa: E402
 
 
 QUESTION_SET_PATH = SCIE_DATA_DIR / "03_question_set_70.csv"
@@ -248,6 +246,38 @@ def text_embedding_search(question, embedder, text_collection, limit=TEXT_TOP_K)
     )
 
 
+def summarize_rank(rows, rank_key, grade_key):
+    total = len(rows)
+    ranks = [int(row[rank_key]) for row in rows if str(row.get(rank_key, "")).strip()]
+    counts = Counter(row.get(grade_key, "") for row in rows)
+    return {
+        "total": total,
+        "O": counts["O"],
+        PARTIAL: counts[PARTIAL],
+        "X": counts["X"],
+        "recall_at_1": sum(1 for rank in ranks if rank <= 1) / total if total else 0.0,
+        "recall_at_5": sum(1 for rank in ranks if rank <= 5) / total if total else 0.0,
+        "recall_at_10": sum(1 for rank in ranks if rank <= 10) / total if total else 0.0,
+        "mrr": sum(reciprocal_rank(row[rank_key]) for row in rows) / total if total else 0.0,
+    }
+
+
+def both_at(rows, text_rank_key, image_rank_key, limit):
+    return (
+        sum(
+            1
+            for row in rows
+            if row.get(text_rank_key)
+            and int(row[text_rank_key]) <= limit
+            and row.get(image_rank_key)
+            and int(row[image_rank_key]) <= limit
+        )
+        / len(rows)
+        if rows
+        else 0.0
+    )
+
+
 def text_details(items):
     return "\n".join(
         f"{item['rank']}. {item['heading']} | pages {item['pages']} | {item['reason']} | {item['preview']}"
@@ -320,7 +350,7 @@ def write_csv(path, fields, rows):
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(clean_csv_rows(rows))
+        writer.writerows(rows)
 
 
 def write_xlsx(path, fields, rows, sheet_name):
@@ -386,9 +416,9 @@ def main():
     g4_rows = {row["질문 번호"]: row for row in read_csv_dicts(G4_DETAIL_PATH)}
 
     keyword_docs, document_frequency = load_text_chunks()
-    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
+    embedder = SentenceTransformer("BAAI/bge-m3")
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
-    text_collection = client.get_collection(name=TEXT_COLLECTION_NAME)
+    text_collection, _ = open_rag_collections(client)
 
     rows = []
     for idx, question in enumerate(questions, start=1):

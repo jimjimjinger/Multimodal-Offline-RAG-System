@@ -20,7 +20,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from create_scie_stage_label_workbook import write_workbook  # noqa: E402
 from paths import (  # noqa: E402
-    BGE_M3_MODEL_ID,
     SCIE_DATA_DIR,
     SCIE_DIR,
     SCIE_EXCEL_DIR,
@@ -225,7 +224,7 @@ def generate_answer(model_id, question, context, timeout=180):
         return normalize(data.get("response", f"Ollama 응답 형식 오류: {data}"))
     except requests.exceptions.Timeout:
         return f"{model_id}가 답변을 생성하는 데 시간이 너무 오래 걸립니다."
-    except (requests.RequestException, ValueError) as exc:
+    except Exception as exc:
         return f"Ollama 연동 실패: {exc}"
 
 
@@ -234,13 +233,13 @@ def check_ollama():
         response = requests.get("http://127.0.0.1:11434/api/version", timeout=5)
         response.raise_for_status()
         return True, response.text
-    except requests.RequestException as exc:
+    except Exception as exc:
         return False, str(exc)
 
 
 def build_retriever():
     configure_model_cache()
-    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
+    embedder = SentenceTransformer("BAAI/bge-m3")
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
     text_collection, image_collection = open_rag_collections(client)
     stage_profiles = build_stage_profiles(STAGE_CONTEXT_MAP_MANUAL_PATH)
@@ -504,7 +503,7 @@ def write_report(rows, summary_rows):
         "",
         "## 평가 성격",
         "",
-        "이 결과는 5개 항목 rubric을 이용한 보조 분석이다. 검색 성능 결과를 보완하기 위한 자료이며, 전문가 평가나 실제 교육 효과 검증 결과가 아니다.",
+        "이 결과는 5개 항목 rubric을 이용한 1차 평가이다. 논문 최종본에서는 전문가 또는 연구자의 수동 검토 결과로 보완하는 것이 바람직하다.",
         "",
         "## 진행 현황",
         "",
@@ -568,7 +567,7 @@ def main():
         scoring_embedder = resources[0]
     else:
         configure_model_cache()
-        scoring_embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
+        scoring_embedder = SentenceTransformer("BAAI/bge-m3")
 
     processed = 0
     start = time.time()

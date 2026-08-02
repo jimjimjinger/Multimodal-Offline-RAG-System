@@ -1,5 +1,4 @@
 import csv
-import hashlib
 import json
 import pickle
 import random
@@ -14,14 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from paths import (  # noqa: E402
-    FINAL_PROCESSING_REPORT_PATH,
-    SCIE_DATA_DIR,
-    SCIE_DIR,
-    STAGE_CONTEXT_MAP_MANUAL_PATH,
-    TEXT_CHUNKS_PATH,
-    TEXT_IMAGE_MAPPING_REPORT_PATH,
-)
+from paths import SCIE_DIR  # noqa: E402
 
 
 OUTPUT_DIR = SCIE_DIR / "weight_optimization"
@@ -32,7 +24,6 @@ G3_SEARCH_PATH = OUTPUT_DIR / "g3_search_top100.csv"
 G4_SEARCH_PATH = OUTPUT_DIR / "g4_search_top100.csv"
 QUESTION_RANKS_PATH = OUTPUT_DIR / "best_question_ranks.csv"
 REPORT_PATH = OUTPUT_DIR / "weight_optimization_report.md"
-QUESTION_PATH = SCIE_DATA_DIR / "03_question_set_70.csv"
 
 SEED = 20260716
 FOLD_COUNT = 5
@@ -66,14 +57,6 @@ RECOMMENDED_G4_CONFIG = {
 }
 
 
-def file_sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def load_caches():
     if not PAIR_CACHE_PATH.exists():
         raise FileNotFoundError(f"Missing pair cache: {PAIR_CACHE_PATH}")
@@ -82,34 +65,6 @@ def load_caches():
     pair_cache = json.loads(PAIR_CACHE_PATH.read_text(encoding="utf-8"))
     with FEATURE_CACHE_PATH.open("rb") as handle:
         feature_cache = pickle.load(handle)
-
-    expected_pair_hashes = {
-        "text_chunks_sha256": file_sha256(TEXT_CHUNKS_PATH),
-        "image_metadata_sha256": file_sha256(FINAL_PROCESSING_REPORT_PATH),
-    }
-    pair_metadata = pair_cache.get("metadata", {})
-    if any(pair_metadata.get(key) != value for key, value in expected_pair_hashes.items()):
-        raise RuntimeError(
-            "SigLIP pair cache is stale. Run "
-            "`python scripts/cache_siglip_pair_scores.py --force`."
-        )
-
-    expected_feature_hashes = {
-        "questions_sha256": file_sha256(QUESTION_PATH),
-        "text_chunks_sha256": file_sha256(TEXT_CHUNKS_PATH),
-        "mapping_report_sha256": file_sha256(TEXT_IMAGE_MAPPING_REPORT_PATH),
-        "image_metadata_sha256": file_sha256(FINAL_PROCESSING_REPORT_PATH),
-        "stage_context_sha256": file_sha256(STAGE_CONTEXT_MAP_MANUAL_PATH),
-    }
-    cached_feature_hashes = feature_cache.get("metadata", {}).get(
-        "source_hashes",
-        {},
-    )
-    if cached_feature_hashes != expected_feature_hashes:
-        raise RuntimeError(
-            "Retrieval feature cache is stale. Run "
-            "`python scripts/build_weight_optimization_cache.py --force`."
-        )
     return pair_cache, feature_cache
 
 

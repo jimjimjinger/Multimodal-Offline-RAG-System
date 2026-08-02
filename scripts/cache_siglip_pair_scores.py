@@ -1,5 +1,4 @@
 import argparse
-import hashlib
 import json
 import math
 import re
@@ -62,21 +61,7 @@ def build_text_prompt(chunk):
 
 
 def has_explicit_caption(text):
-    return bool(
-        re.search(
-            r"(그림|도면|도표|도식|Fig\.?|Figure)\s*\d+",
-            text,
-            re.IGNORECASE,
-        )
-    )
-
-
-def file_sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    return bool(re.search(r"(그림|도표|도식|Fig\.?|Figure)\s*\d+", text, re.IGNORECASE))
 
 
 def bbox_distance(text_bboxes, image_bbox):
@@ -216,20 +201,10 @@ def build_pair_records(chunks, images, cosine_matrix, logit_scale, logit_bias):
 def main(force=False):
     configure_model_cache()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    source_hashes = {
-        "text_chunks_sha256": file_sha256(TEXT_CHUNKS_PATH),
-        "image_metadata_sha256": file_sha256(FINAL_PROCESSING_REPORT_PATH),
-    }
     if OUTPUT_PATH.exists() and not force:
-        try:
-            existing = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            existing = {}
-        metadata = existing.get("metadata", {})
-        if all(metadata.get(key) == value for key, value in source_hashes.items()):
-            print(f"Cache is current: {OUTPUT_PATH}")
-            return
-        print("Input data changed; rebuilding the SigLIP pair cache.")
+        print(f"Cache already exists: {OUTPUT_PATH}")
+        print("Use --force to rebuild it.")
+        return
 
     chunks = json.loads(TEXT_CHUNKS_PATH.read_text(encoding="utf-8"))
     images = json.loads(FINAL_PROCESSING_REPORT_PATH.read_text(encoding="utf-8"))
@@ -271,16 +246,10 @@ def main(force=False):
             "caption_distance_factor": CAPTION_DISTANCE_FACTOR,
             "logit_scale": logit_scale,
             "logit_bias": logit_bias,
-            **source_hashes,
         },
         "chunks": records,
     }
-    temporary_path = OUTPUT_PATH.with_suffix(".json.tmp")
-    temporary_path.write_text(
-        json.dumps(output, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    temporary_path.replace(OUTPUT_PATH)
+    OUTPUT_PATH.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Created: {OUTPUT_PATH}")
     print(f"Cached pairs: {pair_count}")
 

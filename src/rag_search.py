@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from chromadb.errors import NotFoundError
+import numpy as np
 
 from image_index import IMAGE_COLLECTION_NAME
 from paths import FINAL_IMAGES_DIR, FINAL_PROCESSING_REPORT_PATH, STAGE_CONTEXT_MAP_PATH, resolve_image_path
@@ -28,16 +28,107 @@ MAPPING_WEIGHT = 0.05
 DIAGRAM_CONFIDENCE_WEIGHT = 0.05
 
 
+class ExactVectorCollection:
+    """Query a Chroma collection by exhaustively comparing stored vectors."""
+
+    def __init__(self, collection):
+        records = collection.get(include=["embeddings", "documents", "metadatas"])
+        embeddings = records.get("embeddings")
+        if embeddings is None or len(embeddings) == 0:
+            raise RuntimeError(f"{collection.name} 컬렉션에 저장된 임베딩이 없습니다.")
+
+        ids = list(records.get("ids") or [])
+        documents = list(records.get("documents") or [None] * len(ids))
+        metadatas = list(records.get("metadatas") or [None] * len(ids))
+        if not (len(ids) == len(documents) == len(metadatas) == len(embeddings)):
+            raise RuntimeError(f"{collection.name} 컬렉션의 저장 데이터 길이가 일치하지 않습니다.")
+
+        stable_order = sorted(range(len(ids)), key=lambda index: ids[index])
+        self.name = collection.name
+        self._collection = collection
+        self._ids = np.asarray([ids[index] for index in stable_order], dtype=str)
+        self._documents = [documents[index] for index in stable_order]
+        self._metadatas = [metadatas[index] for index in stable_order]
+        self._embeddings = np.asarray(
+            [embeddings[index] for index in stable_order],
+            dtype=np.float64,
+        )
+
+        configuration = getattr(collection, "configuration", {}) or {}
+        hnsw_configuration = configuration.get("hnsw") or {}
+        self._space = hnsw_configuration.get("space", "l2")
+        self._embedding_norms = np.linalg.norm(self._embeddings, axis=1)
+
+    def count(self):
+        return len(self._ids)
+
+    def get(self, *args, **kwargs):
+        return self._collection.get(*args, **kwargs)
+
+    def _distances(self, query_embedding):
+        if self._space == "cosine":
+            query_norm = np.linalg.norm(query_embedding)
+            denominator = np.maximum(self._embedding_norms * query_norm, 1e-12)
+            return 1.0 - ((self._embeddings @ query_embedding) / denominator)
+        if self._space == "ip":
+            return 1.0 - (self._embeddings @ query_embedding)
+
+        differences = self._embeddings - query_embedding
+        return np.einsum("ij,ij->i", differences, differences)
+
+    def query(self, query_embeddings, n_results=10, include=None, **kwargs):
+        if kwargs:
+            unsupported = ", ".join(sorted(kwargs))
+            raise ValueError(f"정확 검색에서 지원하지 않는 query 옵션입니다: {unsupported}")
+
+        queries = np.asarray(query_embeddings, dtype=np.float64)
+        if queries.ndim == 1:
+            queries = queries.reshape(1, -1)
+        if queries.ndim != 2 or queries.shape[1] != self._embeddings.shape[1]:
+            raise ValueError(
+                f"질의 임베딩 차원이 올바르지 않습니다: "
+                f"{queries.shape} != (*, {self._embeddings.shape[1]})"
+            )
+
+        requested = set(include or ["metadatas", "documents", "distances"])
+        limit = min(max(1, int(n_results)), self.count())
+        result = {"ids": []}
+        if "documents" in requested:
+            result["documents"] = []
+        if "metadatas" in requested:
+            result["metadatas"] = []
+        if "distances" in requested:
+            result["distances"] = []
+        if "embeddings" in requested:
+            result["embeddings"] = []
+
+        for query_embedding in queries:
+            distances = self._distances(query_embedding)
+            order = np.lexsort((self._ids, distances))[:limit]
+            result["ids"].append(self._ids[order].tolist())
+            if "documents" in requested:
+                result["documents"].append([self._documents[index] for index in order])
+            if "metadatas" in requested:
+                result["metadatas"].append([self._metadatas[index] for index in order])
+            if "distances" in requested:
+                result["distances"].append(distances[order].astype(float).tolist())
+            if "embeddings" in requested:
+                result["embeddings"].append(self._embeddings[order].astype(float).tolist())
+
+        return result
+
+
 def get_collection_or_none(client, name):
     try:
         return client.get_collection(name=name)
-    except NotFoundError:
+    except Exception:
         return None
 
 
 def open_rag_collections(client):
-    text_collection = client.get_collection(name=TEXT_COLLECTION_NAME)
-    image_collection = get_collection_or_none(client, IMAGE_COLLECTION_NAME)
+    text_collection = ExactVectorCollection(client.get_collection(name=TEXT_COLLECTION_NAME))
+    raw_image_collection = get_collection_or_none(client, IMAGE_COLLECTION_NAME)
+    image_collection = ExactVectorCollection(raw_image_collection) if raw_image_collection is not None else None
     return text_collection, image_collection
 
 
@@ -372,7 +463,7 @@ def _add_stage_map_page_candidates(candidates, stage_context):
             item["sources"].append("stage_map_page")
 
 
-def _apply_stage_context(candidates, stage_context=None):
+def _apply_stage_context(candidates, stage_label, stage_context=None):
     if not stage_context:
         return
 
@@ -419,13 +510,14 @@ def _base_image_score(item):
 def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_context=False):
     candidate_items = list(candidates.values())
     for item in candidate_items:
-        item["_base_score"] = _base_image_score(item)
+        base_score = _base_image_score(item)
+        item["base_score"] = round(base_score, 4)
         item["base_rank"] = 0
 
     base_ranked = sorted(
         candidate_items,
         key=lambda item: (
-            item["_base_score"],
+            item["base_score"],
             item["image_search_score"],
             item["page_score"],
             item["text_rank_score"],
@@ -445,19 +537,20 @@ def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_conte
                 rank_factor = 0.35
             else:
                 rank_factor = 0.0
-            item["_score"] = (
-                item["_base_score"]
+            score = (
+                item["base_score"]
                 + (STAGE_CONTEXT_WEIGHT * item["stage_score"] * rank_factor)
                 + (STAGE_PAGE_PRIOR_WEIGHT * item["stage_page_score"])
             )
         else:
-            item["_score"] = item["_base_score"]
+            score = item["base_score"]
+        item["score"] = round(score, 4)
         item["rank"] = 0
         ranked.append(item)
 
     ranked.sort(
         key=lambda item: (
-            item["_score"],
+            item["score"],
             item["stage_score"] if use_stage_context else 0.0,
             item["stage_page_score"] if use_stage_context else 0.0,
             item["image_search_score"],
@@ -468,12 +561,9 @@ def rank_image_candidates(candidates, limit=IMAGE_RESULTS_LIMIT, use_stage_conte
         reverse=True,
     )
 
-    ranked = ranked[:limit]
-    for rank, item in enumerate(ranked, start=1):
+    for rank, item in enumerate(ranked[:limit], start=1):
         item["rank"] = rank
-        item["base_score"] = round(item.pop("_base_score"), 4)
-        item["score"] = round(item.pop("_score"), 4)
-    return ranked
+    return ranked[:limit]
 
 
 def _text_stage_score(doc, meta, stage_context):
@@ -568,22 +658,21 @@ def retrieve_multimodal(
 
     stage_context = _stage_context_for(stage_label, map_path=stage_context_map_path)
     answer_query_top_k = max(answer_top_k, STAGE_TEXT_TOP_K) if stage_context else answer_top_k
-    combined_text_top_k = max(answer_query_top_k, image_text_top_k)
-    text_result = text_collection.query(
-        query_embeddings=[query_embedding],
-        n_results=combined_text_top_k,
-    )
-    text_ids = query_first(text_result, "ids")
-    text_docs = query_first(text_result, "documents")
-    text_metas = query_first(text_result, "metadatas")
+
+    answer_result = text_collection.query(query_embeddings=[query_embedding], n_results=answer_query_top_k)
+    answer_ids = query_first(answer_result, "ids")
+    answer_docs = query_first(answer_result, "documents")
+    answer_metas = query_first(answer_result, "metadatas")
     answer_ids, answer_docs, answer_metas = rank_text_results(
-        text_ids[:answer_query_top_k],
-        text_docs[:answer_query_top_k],
-        text_metas[:answer_query_top_k],
+        answer_ids,
+        answer_docs,
+        answer_metas,
         answer_top_k,
         stage_context=stage_context,
     )
-    image_text_metas = text_metas[:image_text_top_k]
+
+    image_text_result = text_collection.query(query_embeddings=[query_embedding], n_results=image_text_top_k)
+    image_text_metas = query_first(image_text_result, "metadatas")
 
     candidates = {}
     _add_text_image_candidates(candidates, image_text_metas)
@@ -598,8 +687,10 @@ def retrieve_multimodal(
 
     use_stage_context = bool(stage_context)
     if use_stage_context:
-        _add_stage_map_page_candidates(candidates, stage_context)
-        _apply_stage_context(candidates, stage_context=stage_context)
+        if stage_context:
+            _add_stage_map_page_candidates(candidates, stage_context)
+
+        _apply_stage_context(candidates, stage_label, stage_context=stage_context)
 
     images = rank_image_candidates(
         candidates,
@@ -607,6 +698,7 @@ def retrieve_multimodal(
         use_stage_context=use_stage_context,
     )
     return {
+        "query_embedding": query_embedding,
         "answer_ids": answer_ids,
         "answer_docs": answer_docs,
         "answer_metas": answer_metas,
@@ -614,5 +706,6 @@ def retrieve_multimodal(
         "images": images,
         "image_collection_available": image_collection is not None,
         "stage_context_used": use_stage_context,
+        "stage_context_map_used": stage_context is not None,
         "stage_context": stage_context,
     }

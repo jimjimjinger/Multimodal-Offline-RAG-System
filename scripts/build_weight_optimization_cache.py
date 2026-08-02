@@ -1,6 +1,5 @@
 import argparse
 import csv
-import hashlib
 import json
 import os
 import pickle
@@ -26,16 +25,13 @@ from paths import (  # noqa: E402
     SCIE_DATA_DIR,
     SCIE_DIR,
     STAGE_CONTEXT_MAP_MANUAL_PATH,
-    TEXT_CHUNKS_PATH,
-    TEXT_IMAGE_MAPPING_REPORT_PATH,
     VECTOR_DB_DIR,
     configure_model_cache,
 )
 from rag_search import (  # noqa: E402
-    IMAGE_COLLECTION_NAME,
-    TEXT_COLLECTION_NAME,
     extract_pages,
     load_stage_context_map,
+    open_rag_collections,
     page_range_score,
     term_match_score,
 )
@@ -59,24 +55,6 @@ SEMANTIC_ACCEPT_RANK = 15
 def read_questions():
     with QUESTION_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
-
-
-def file_sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def source_hashes():
-    return {
-        "questions_sha256": file_sha256(QUESTION_PATH),
-        "text_chunks_sha256": file_sha256(TEXT_CHUNKS_PATH),
-        "mapping_report_sha256": file_sha256(TEXT_IMAGE_MAPPING_REPORT_PATH),
-        "image_metadata_sha256": file_sha256(FINAL_PROCESSING_REPORT_PATH),
-        "stage_context_sha256": file_sha256(STAGE_CONTEXT_MAP_MANUAL_PATH),
-    }
 
 
 def parse_json(value, default):
@@ -367,24 +345,15 @@ def main(force=False):
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    current_hashes = source_hashes()
     if OUTPUT_PATH.exists() and not force:
-        try:
-            with OUTPUT_PATH.open("rb") as handle:
-                existing = pickle.load(handle)
-        except (OSError, pickle.PickleError, EOFError):
-            existing = {}
-        cached_hashes = existing.get("metadata", {}).get("source_hashes", {})
-        if cached_hashes == current_hashes:
-            print(f"Cache is current: {OUTPUT_PATH}")
-            return
-        print("Input data changed; rebuilding the retrieval feature cache.")
+        print(f"Cache already exists: {OUTPUT_PATH}")
+        print("Use --force to rebuild it.")
+        return
 
     questions = read_questions()
     images = json.loads(FINAL_PROCESSING_REPORT_PATH.read_text(encoding="utf-8"))
     client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
-    text_collection = client.get_collection(name=TEXT_COLLECTION_NAME)
-    image_collection = client.get_collection(name=IMAGE_COLLECTION_NAME)
+    text_collection, image_collection = open_rag_collections(client)
     image_documents = image_collection_documents(image_collection)
     (
         image_names,
@@ -491,15 +460,12 @@ def main(force=False):
             "stage_text_top_k": STAGE_TEXT_TOP_K,
             "semantic_answer_top_k": SEMANTIC_ANSWER_TOP_K,
             "semantic_accept_rank": SEMANTIC_ACCEPT_RANK,
-            "source_hashes": current_hashes,
         },
         "image_names": image_names,
         "records": records,
     }
-    temporary_path = OUTPUT_PATH.with_suffix(".pkl.tmp")
-    with temporary_path.open("wb") as handle:
+    with OUTPUT_PATH.open("wb") as handle:
         pickle.dump(output, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    temporary_path.replace(OUTPUT_PATH)
     print(f"Created: {OUTPUT_PATH}")
 
 

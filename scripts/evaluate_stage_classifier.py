@@ -14,7 +14,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from create_scie_stage_label_workbook import write_workbook  # noqa: E402
 from paths import (  # noqa: E402
-    BGE_M3_MODEL_ID,
     SCIE_DATA_DIR,
     SCIE_DIR,
     SCIE_EXCEL_DIR,
@@ -190,7 +189,7 @@ def write_report(rows, summary):
 
 def main():
     configure_model_cache()
-    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
+    embedder = SentenceTransformer("BAAI/bge-m3")
     profiles = build_stage_profiles(STAGE_CONTEXT_MAP_MANUAL_PATH)
     profile_embeddings = encode_stage_profiles(embedder, profiles)
 

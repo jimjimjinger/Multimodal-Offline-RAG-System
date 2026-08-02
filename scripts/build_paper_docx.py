@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 from docx import Document
+from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -29,8 +30,46 @@ DARK_BLUE = RGBColor(31, 77, 120)
 INK = RGBColor(20, 20, 20)
 MUTED = RGBColor(95, 95, 95)
 LIGHT_BLUE = "E8EEF5"
+
+PAGINATION_MARK_TAGS = (
+    "w:keepNext",
+    "w:keepLines",
+    "w:pageBreakBefore",
+    "w:suppressLineNumbers",
+    "w:widowControl",
+)
+
+
+def remove_paragraph_pagination_marks(doc: Document) -> None:
+    """Remove paragraph pagination settings that Word displays as black squares."""
+    for root in (doc.element, doc.styles.element):
+        for paragraph_properties in root.xpath(".//w:pPr"):
+            for tag in PAGINATION_MARK_TAGS:
+                for element in paragraph_properties.findall(qn(tag)):
+                    paragraph_properties.remove(element)
 LIGHT_GRAY = "F2F4F7"
 GRID = "B8C2CC"
+
+AUTHOR_NAME = "Jimin Lee"
+AUTHOR_AFFILIATION = (
+    "Artificial Intelligence, Graduate School of Information and Telecommunications, "
+    "Konkuk University, Seoul 05029, Republic of Korea"
+)
+AUTHOR_EMAIL = "jiminlee0508@naver.com"
+AUTHOR_ORCID = "0009-0009-3159-6517"
+AUTHOR_BIOGRAPHY_EN = (
+    "Jimin Lee received the B.S. degree in environmental engineering from Inha "
+    "University, Incheon, Republic of Korea. Jimin Lee is currently pursuing the "
+    "master's degree in artificial intelligence at the Graduate School of "
+    "Information and Telecommunications, Konkuk University, Seoul, Republic of "
+    "Korea. Research interests include multimodal retrieval-augmented generation, "
+    "local large language models, and collaborative robot training systems."
+)
+AUTHOR_BIOGRAPHY_KO = (
+    "이지민은 인하대학교 환경공학과에서 학사학위를 취득하였으며, 현재 건국대학교 "
+    "정보통신대학원에서 인공지능 석사과정을 이수하고 있다. 주요 연구 관심 분야는 "
+    "멀티모달 검색 증강 생성, 로컬 대규모 언어 모델 및 협동 로봇 실습 시스템이다."
+)
 
 
 def font_path(name: str) -> str:
@@ -328,6 +367,29 @@ def shade_cell(cell, fill: str) -> None:
         tc_pr.append(shd)
     shd.set(qn("w:fill"), fill)
 
+def clear_cell_shading(cell) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shd = tc_pr.find(qn("w:shd"))
+    if shd is not None:
+        shd.set(qn("w:fill"), "auto")
+        shd.set(qn("w:val"), "clear")
+
+
+def set_cell_bottom_border(cell, color: str = "000000", size: str = "6") -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    borders = tc_pr.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        tc_pr.append(borders)
+    bottom = borders.find(qn("w:bottom"))
+    if bottom is None:
+        bottom = OxmlElement("w:bottom")
+        borders.append(bottom)
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), size)
+    bottom.set(qn("w:space"), "0")
+    bottom.set(qn("w:color"), color)
+
 
 def set_cell_margins(cell, top: int = 80, start: int = 120, bottom: int = 80, end: int = 120) -> None:
     tc = cell._tc
@@ -357,10 +419,11 @@ def set_table_borders(table) -> None:
         if element is None:
             element = OxmlElement(tag)
             borders.append(element)
-        element.set(qn("w:val"), "single")
-        element.set(qn("w:sz"), "4")
+        visible = edge in {"top", "bottom"}
+        element.set(qn("w:val"), "single" if visible else "nil")
+        element.set(qn("w:sz"), "8" if visible else "0")
         element.set(qn("w:space"), "0")
-        element.set(qn("w:color"), GRID)
+        element.set(qn("w:color"), "000000")
 
 
 def set_table_width(table, width_dxa: int = 9360) -> None:
@@ -379,6 +442,25 @@ def set_table_width(table, width_dxa: int = 9360) -> None:
         tbl_pr.append(tbl_ind)
     tbl_ind.set(qn("w:w"), "120")
     tbl_ind.set(qn("w:type"), "dxa")
+
+
+def set_table_column_widths(table, widths_in: list[float]) -> None:
+    widths_dxa = [round(width * 1440) for width in widths_in]
+    set_table_width(table, sum(widths_dxa))
+
+    grid = table._tbl.tblGrid
+    for column in list(grid):
+        grid.remove(column)
+    for width in widths_dxa:
+        column = OxmlElement("w:gridCol")
+        column.set(qn("w:w"), str(width))
+        grid.append(column)
+
+    for row in table.rows:
+        for cell, width in zip(row.cells, widths_dxa):
+            tc_w = cell._tc.get_or_add_tcPr().get_or_add_tcW()
+            tc_w.set(qn("w:w"), str(width))
+            tc_w.set(qn("w:type"), "dxa")
 
 
 def add_page_number(paragraph) -> None:
@@ -612,8 +694,20 @@ def add_table_from_rows(doc: Document, rows: list[list[str]]) -> None:
         add_para(doc, "Image and multimodal retrieval performance", style=None)
         add_table_from_rows(doc, image_rows)
         return
+    if (
+        len(rows) == 11
+        and len(rows[0]) == 2
+        and rows[0][0] == "항목"
+    ):
+        doc.add_page_break()
+    if len(rows) == 10 and len(rows[0]) == 7 and rows[0][0] != "Group":
+        doc.add_page_break()
+    leading = doc.add_paragraph()
+    leading_run = leading.add_run("\u00A0")
+    set_run_font(leading_run, size=9.5)
+    set_paragraph_style(leading, before=0, after=0, line_spacing=1.0)
     table = doc.add_table(rows=len(rows), cols=len(rows[0]))
-    table.style = "Table Grid"
+    table.style = "Normal Table"
     set_table_width(table)
     set_table_borders(table)
 
@@ -622,7 +716,7 @@ def add_table_from_rows(doc: Document, rows: list[list[str]]) -> None:
     if cols == 2:
         widths = [2.1, 4.4]
     elif cols == 3:
-        widths = [1.7, 2.4, 2.4]
+        widths = [0.75, 1.75, 4.0]
     elif cols == 4:
         widths = [1.3, 1.7, 1.7, 1.8]
     elif cols == 5:
@@ -630,24 +724,31 @@ def add_table_from_rows(doc: Document, rows: list[list[str]]) -> None:
     elif cols == 6:
         widths = [1.0, 0.75, 0.75, 0.75, 0.75, 2.5]
     elif cols == 7:
-        widths = [2.0, 0.75, 0.75, 0.75, 0.85, 0.75, 0.75]
+        widths = [1.9, 0.9, 0.45, 1.0, 0.75, 0.85, 0.65]
     else:
         widths = [total_width / cols] * cols
+    set_table_column_widths(table, widths)
     for i, row in enumerate(rows):
         for j, value in enumerate(row):
             cell = table.cell(i, j)
             cell.width = Inches(widths[j])
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            set_cell_margins(cell)
+            margin_y = 40 if cols == 3 else 80
+            set_cell_margins(cell, top=margin_y, bottom=margin_y)
+            clear_cell_shading(cell)
             if i == 0:
-                shade_cell(cell, LIGHT_GRAY)
+                set_cell_bottom_border(cell)
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER if j > 0 and len(value) < 18 else WD_ALIGN_PARAGRAPH.LEFT
-            set_paragraph_style(p, after=0, line_spacing=1.10)
+            set_paragraph_style(p, after=0, line_spacing=1.0 if cols == 3 else 1.10)
             run = p.add_run(value.strip())
-            set_run_font(run, size=9.5 if cols >= 6 else 10, bold=(i == 0))
+            font_size = 9.0 if cols == 3 else 9.5 if cols >= 6 else 10
+            set_run_font(run, size=font_size, bold=(i == 0))
 
-    doc.add_paragraph()
+    spacer = doc.add_paragraph()
+    spacer_run = spacer.add_run("\u00A0")
+    set_run_font(spacer_run, size=9.5)
+    set_paragraph_style(spacer, after=0, line_spacing=1.0)
 
 
 def parse_table(lines: list[str], start: int) -> tuple[list[list[str]], int]:
@@ -759,6 +860,24 @@ def build_docx(
     )
     run = subtitle.add_run(subtitle_text)
     set_run_font(run, size=10.5, color=MUTED)
+
+    author = doc.add_paragraph()
+    author.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    author.paragraph_format.space_after = Pt(2)
+    run = author.add_run(AUTHOR_NAME)
+    set_run_font(run, size=10.5, bold=True, color=INK)
+
+    affiliation = doc.add_paragraph()
+    affiliation.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    affiliation.paragraph_format.space_after = Pt(1)
+    run = affiliation.add_run(AUTHOR_AFFILIATION)
+    set_run_font(run, size=9.5, color=MUTED)
+
+    contact = doc.add_paragraph()
+    contact.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    contact.paragraph_format.space_after = Pt(12)
+    run = contact.add_run(f"Email: {AUTHOR_EMAIL} | ORCID: {AUTHOR_ORCID}")
+    set_run_font(run, size=9.5, color=MUTED)
 
     # Keep only manuscript sections and references. Internal notes are excluded.
     wanted: list[str] = []
@@ -884,10 +1003,18 @@ def build_docx(
     if not algorithm_inserted:
         add_algorithm(doc)
 
+    if language == "en":
+        doc.add_heading("Author Biography", level=1)
+        add_para(doc, AUTHOR_BIOGRAPHY_EN)
+    else:
+        doc.add_heading("저자 약력", level=1)
+        add_para(doc, AUTHOR_BIOGRAPHY_KO)
+
     doc.core_properties.title = "A Context-Aware Multimodal Retrieval-Augmented Generation Framework for Collaborative Robot Training"
-    doc.core_properties.author = "Jimin"
+    doc.core_properties.author = AUTHOR_NAME
     doc.core_properties.subject = "SCIE/IEEE Access manuscript draft"
     doc.core_properties.keywords = "multimodal RAG, collaborative robot training, context-aware retrieval"
+    remove_paragraph_pagination_marks(doc)
     doc.save(out_docx)
 
 

@@ -6,11 +6,6 @@ runtime/ollama/
 runtime/ollama_home/
 runtime/ollama_models/
 runtime/downloads/
-data/vector_db/
-.codex/
-.agents/
-tmp/
-build_tmp/
 __pycache__/
 *.py[cod]
 .env
@@ -18,6 +13,16 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
+
+# Local document rendering and QA artifacts
+.tmp_docx_qa_*/
+.tmp_paper_layout/
+_qa_docx_spacing*/
+_lo_profile_spacing/
+build_tmp/
+tmp/
+.agents/
+.codex/
 참고문헌/
 
 # Legacy local paths

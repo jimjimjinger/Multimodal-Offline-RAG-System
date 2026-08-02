@@ -116,7 +116,7 @@ Context-aware Re-ranking Method
 
 - G4 Image Recall@5: 77.1%
 - G4 Image Recall@10: 87.1%
-- G4 Image MRR: 0.608
+- G4 Image MRR: 0.620
 
 ## Figure 6. G4 개선 사례
 

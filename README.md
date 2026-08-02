@@ -59,10 +59,10 @@ PDF 매뉴얼
 
 | 비교군 | Text R@1 | Text R@5 | Text R@10 | Text MRR | Image R@1 | Image R@5 | Image R@10 | Image MRR | Both@5 | Both@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| G1 Keyword Search | 75.7% | 92.9% | 98.6% | 0.827 | - | - | - | - | - | - |
-| G2 Text-only RAG | 78.6% | 94.3% | 100.0% | 0.859 | - | - | - | - | - | - |
-| G3 Multimodal RAG | 78.6% | 94.3% | 100.0% | 0.859 | 38.6% | 74.3% | 84.3% | 0.534 | 74.3% | 84.3% |
-| G4 Context-aware Multimodal RAG | 84.3% | 95.7% | 100.0% | 0.894 | 44.3% | 85.7% | 92.9% | 0.608 | 84.3% | 92.9% |
+| G1 Keyword Search | 75.7% | 95.7% | 98.6% | 0.837 | - | - | - | - | - | - |
+| G2 Text-only RAG | 81.4% | 95.7% | 100.0% | 0.879 | - | - | - | - | - | - |
+| G3 Multimodal RAG | 81.4% | 95.7% | 100.0% | 0.879 | 45.7% | 71.4% | 80.0% | 0.572 | 71.4% | 80.0% |
+| G4 Context-aware Multimodal RAG | 85.7% | 95.7% | 100.0% | 0.903 | 48.6% | 77.1% | 87.1% | 0.620 | 77.1% | 87.1% |
 
 현재 결과에서 가장 중요한 점은 다음입니다.
 
@@ -71,8 +71,8 @@ PDF 매뉴얼
 - G3의 역할은 텍스트 검색 개선이 아니라, 이미지 전용 검색과 텍스트-이미지 매핑을 추가해 이미지/도식 후보를 함께 찾는 것입니다.
 - 멀티모달 RAG의 병목은 이미지 검색 순위입니다.
 - G4는 G3 대비 이미지 후보의 Top-5/Top-10 포함률과 평균 순위를 개선했습니다.
-- 특히 Image Recall@5는 `74.3% -> 85.7%`, Image Recall@10은 `84.3% -> 92.9%`, Image MRR은 `0.534 -> 0.608`로 개선되었습니다.
-- 다만 Image Recall@1은 `44.3%`로 절반 미만이어서, 이미지 검색 문제를 완전히 해결한 것은 아닙니다.
+- 특히 Image Recall@5는 `71.4% -> 77.1%`, Image Recall@10은 `80.0% -> 87.1%`, Image MRR은 `0.572 -> 0.620`으로 개선되었습니다.
+- 다만 Image Recall@1은 `48.6%`로 절반 미만이어서, 이미지 검색 문제를 완전히 해결한 것은 아닙니다.
 
 BBox는 최종 점수에 직접 더하지 않습니다. 전처리에서 공간적으로 가까운 이미지를 후보로 남기는 필터로 사용하고, 후보 순위는 SigLIP 의미 유사도로 결정합니다. G3/G4 가중치는 70개 질의 기반 탐색과 5-fold 내부 검증으로 선택했으므로, 현재 결과는 내부 파일럿 성능이며 별도 hold-out 데이터 검증이 필요합니다.
 
@@ -86,7 +86,7 @@ BBox는 최종 점수에 직접 더하지 않습니다. 전처리에서 공간�
 - 비교 조건: G2/G3/G4 x Qwen/Gemma/Llama x 70개 질문
 - 평가 기준: 정확성, 구체성, 실습 단계 적합성, 안전성, 이해 용이성
 - 전체 630개는 rubric 기반 1차 평가
-- 응답 품질 결과는 검색 성능을 보완하는 루브릭 기반 보조 분석
+- G4 오류 및 애매 사례 54개는 연구자 수동 검토
 
 현재 해석은 다음과 같습니다.
 
@@ -114,73 +114,50 @@ context-aware multimodal retrieval, 특히 이미지/도식 검색 순위 개선
 ```text
 src/                  앱 및 검색 런타임 코드
 scripts/              평가, 전처리, 다운로드, 실험 스크립트
+docs/code_manual/     전처리부터 앱 실행까지 Python 파일별 상세 설명서
 data/raw/             원본 PDF 매뉴얼
 data/processed/       추출 텍스트, 이미지, 최종 정제 데이터
 data/vector_db/       ChromaDB 벡터 DB
-SCIE용/               논문 실험, 결과, 초안, 산출물 정리
+SCIE용/               논문, 실험 데이터, Excel, 도식, Markdown 백업 ZIP
 SCIE용/산출물/        교수님 보고 및 논문 작성용 핵심 산출물 모음
 models/               로컬 모델 파일, Git 제외
 runtime/              Ollama 실행 환경, Git 제외
 ```
 
-## 교수님 보고용 핵심 파일
+## 코드 상세 설명서
 
-보고에는 아래 파일들을 우선 보면 됩니다.
+전체 실행 순서와 파일별 함수 설명은 아래 문서에서 확인할 수 있습니다.
 
 | 용도 | 파일 |
 |---|---|
-| 최종 정리본 | `SCIE용/18_paper_ready_summary.md` |
-| 논문 국문 초안 | `SCIE용/19_paper_draft.md` |
-| G1/G2/G3/G4 비교 결과 | `SCIE용/15_g1_g2_g3_g4_results.md` |
-| G4 개선/실패 사례 | `SCIE용/16_g4_case_analysis.md` |
-| 응답 품질 평가 결과 | `SCIE용/22_response_quality_eval_results.md` |
-| 시스템 전체 설명서 | `SCIE용/36_system_full_explanation.md` |
-| 산출물 모음 | `SCIE용/산출물/` |
+| 전체 파이프라인과 실행 순서 | `docs/code_manual/00_전체_실행_순서.md` |
+| Python 파일별 상세 설명 | `docs/code_manual/01_paths_py_설명서.md` ~ `12_app_llama_py_설명서.md` |
+| 이전 Markdown 문서 전체 백업 | `SCIE용/현재까지_MD_전체.zip` |
+| IEEE Access 영문 통합 원고 | `SCIE용/논문/IEEE Access 영문 통합 원고.docx` |
+| 국문 원문 초안 | `SCIE용/논문/원문 초안.docx` |
+| 논문용 핵심 산출물 | `SCIE용/산출물/` |
 
 ## 실행 방법
 
-### 1. Python 환경 준비
-
-Python 3.12 환경을 기준으로 합니다.
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-프로젝트를 다른 경로로 옮겼다면 기존 `.venv`를 그대로 사용하지 말고 위 명령으로 다시 생성합니다.
-
-NVIDIA GPU에서 CUDA 가속을 사용할 경우 CPU용 PyTorch를 CUDA 13.0 빌드로 교체합니다.
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install --force-reinstall --no-deps -r requirements-cuda.txt
-```
-
-CUDA 설치 확인:
-
-```powershell
-.\.venv\Scripts\python.exe -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
-```
-
-### 2. Ollama 실행
+### 1. Ollama 실행
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start_ollama.ps1
 ```
 
-### 3. Qwen 앱 실행
+### 2. Qwen 앱 실행
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run src\app_qwen.py
 ```
 
-### 4. Gemma 앱 실행
+### 3. Gemma 앱 실행
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run src\app_gemma.py
 ```
 
-### 5. Llama 앱 실행
+### 4. Llama 앱 실행
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run src\app_llama.py
@@ -196,21 +173,10 @@ powershell -ExecutionPolicy Bypass -File .\start_ollama.ps1
 .\.venv\Scripts\python.exe src\embedding_text_image.py
 ```
 
-SigLIP과 BGE-M3 모델이 로컬에 없으면 온라인 연결이 가능한 상태에서 한 번 다운로드합니다.
+SigLIP 모델이 로컬에 없으면 먼저 다운로드합니다.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\download_siglip.py
-.\.venv\Scripts\python.exe scripts\download_bge_m3.py
-```
-
-앱과 전처리 코드는 로컬 캐시만 사용하도록 설정되어 있습니다. BGE-M3와 SigLIP 모델이 준비되지 않은 상태에서는 인터넷에 자동 접속하지 않고 오류를 발생시킵니다.
-
-Ollama 모델도 최초 한 번 준비합니다.
-
-```powershell
-ollama pull qwen2.5:7b
-ollama pull gemma2:9b
-ollama pull llama3.1:8b
 ```
 
 ## 현재 사용 모델
@@ -239,7 +205,7 @@ context-aware multimodal RAG가 text-only RAG 및 일반 multimodal RAG보다
 3. G1/G2/G3/G4 비교 실험 구조 정리
 4. G4 context map 기반 re-ranking 구현
 5. G3 대비 G4 이미지 검색 성능 개선 확인
-6. 응답 품질 평가는 검색 성능을 보완하는 보조 분석으로 분리
+6. 응답 품질 평가는 보조 분석으로 분리하고 G4 오류/애매 사례를 연구자 검토
 
 ## GitHub 업로드 기준
 
@@ -258,4 +224,4 @@ runtime/ollama_models/
 runtime/downloads/
 ```
 
-다른 컴퓨터에서 실행하려면 `requirements.txt`의 Python 패키지, SigLIP/BGE-M3 모델 캐시, Ollama, 로컬 LLM 모델을 다시 설치해야 합니다.
+다른 컴퓨터에서 실행하려면 Python 패키지, SigLIP/BGE-M3 모델 캐시, Ollama, 로컬 LLM 모델을 다시 설치해야 합니다.

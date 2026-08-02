@@ -1,5 +1,6 @@
 ﻿import csv
 import sys
+from collections import Counter
 from pathlib import Path
 
 import chromadb
@@ -18,16 +19,14 @@ from evaluate_scie_retrieval import (  # noqa: E402
     IMAGE_COLLECTION_TOP_K,
     IMAGE_RESULTS_LIMIT,
     IMAGE_TEXT_TOP_K,
+    PARTIAL,
     TEXT_TOP_K,
-    both_at,
-    clean_csv_rows,
     image_rank,
     read_questions,
-    summarize_rank,
+    reciprocal_rank,
     text_rank,
 )
 from paths import (  # noqa: E402
-    BGE_M3_MODEL_ID,
     SCIE_DATA_DIR,
     SCIE_DIR,
     SCIE_EXCEL_DIR,
@@ -40,6 +39,7 @@ from stage_classifier import build_stage_profiles, classify_stage, encode_stage_
 
 
 G3_DETAIL_PATH = SCIE_DATA_DIR / "07_pilot_retrieval_results.csv"
+ORACLE_G4_DETAIL_PATH = SCIE_DATA_DIR / "12_g4_manual_retrieval_results.csv"
 DETAIL_OUTPUT_PATH = SCIE_DATA_DIR / "30_g4_auto_retrieval_results.csv"
 EXCEL_OUTPUT_PATH = SCIE_EXCEL_DIR / "30_g4_auto_retrieval_results.xlsx"
 REPORT_OUTPUT_PATH = SCIE_DIR / "30_g4_auto_results.md"
@@ -56,11 +56,13 @@ CSV_FIELDS = [
     "G4 적용",
     "정답 텍스트",
     "G3 텍스트 정답 순위",
+    "G4-oracle 텍스트 정답 순위",
     "G4 텍스트 정답 순위",
     "G4 텍스트 평가",
     "G4 텍스트 평가 근거",
     "정답 이미지",
     "G3 이미지 정답 순위",
+    "G4-oracle 이미지 정답 순위",
     "G4 이미지 정답 순위",
     "G4 이미지 평가",
     "G4 검색 이미지 Top-10",
@@ -98,7 +100,7 @@ def write_detail(rows):
     with DETAIL_OUTPUT_PATH.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
-        writer.writerows(clean_csv_rows(rows))
+        writer.writerows(rows)
 
 
 def write_excel(rows):
@@ -106,8 +108,37 @@ def write_excel(rows):
     write_workbook(table, EXCEL_OUTPUT_PATH, "G4-auto 검색 평가")
 
 
+def summarize(rows, rank_key, grade_key):
+    total = len(rows)
+    ranks = [int(row[rank_key]) for row in rows if str(row.get(rank_key, "")).strip()]
+    counts = Counter(row.get(grade_key, "") for row in rows)
+    return {
+        "total": total,
+        "O": counts["O"],
+        PARTIAL: counts[PARTIAL],
+        "X": counts["X"],
+        "recall_at_1": sum(1 for rank in ranks if rank <= 1) / total if total else 0.0,
+        "recall_at_5": sum(1 for rank in ranks if rank <= 5) / total if total else 0.0,
+        "recall_at_10": sum(1 for rank in ranks if rank <= 10) / total if total else 0.0,
+        "mrr": sum(reciprocal_rank(row[rank_key]) for row in rows) / total if total else 0.0,
+    }
+
+
 def percent(value):
     return f"{value * 100:.1f}%"
+
+
+def both_at(rows, text_rank_key, image_rank_key, limit):
+    if not rows:
+        return 0.0
+    return sum(
+        1
+        for row in rows
+        if row.get(text_rank_key)
+        and int(row[text_rank_key]) <= limit
+        and row.get(image_rank_key)
+        and int(row[image_rank_key]) <= limit
+    ) / len(rows)
 
 
 def metric_row(label, text_summary, image_summary, rows, text_key, image_key):
@@ -127,10 +158,10 @@ def metric_row(label, text_summary, image_summary, rows, text_key, image_key):
 
 
 def write_report(rows, g3_rows):
-    g3_text = summarize_rank(g3_rows, "텍스트 정답 순위", "텍스트 평가")
-    g3_image = summarize_rank(g3_rows, "이미지 정답 순위", "이미지 평가")
-    auto_text = summarize_rank(rows, "G4 텍스트 정답 순위", "G4 텍스트 평가")
-    auto_image = summarize_rank(rows, "G4 이미지 정답 순위", "G4 이미지 평가")
+    g3_text = summarize(g3_rows, "텍스트 정답 순위", "텍스트 평가")
+    g3_image = summarize(g3_rows, "이미지 정답 순위", "이미지 평가")
+    auto_text = summarize(rows, "G4 텍스트 정답 순위", "G4 텍스트 평가")
+    auto_image = summarize(rows, "G4 이미지 정답 순위", "G4 이미지 평가")
 
     metrics = [
         metric_row("G3", g3_text, g3_image, g3_rows, "텍스트 정답 순위", "이미지 정답 순위"),
@@ -189,9 +220,11 @@ def main():
     configure_model_cache()
     questions = read_questions()
     g3_rows = read_detail(G3_DETAIL_PATH)
+    oracle_rows = read_detail(ORACLE_G4_DETAIL_PATH)
     g3_by_id = {row["질문 번호"]: row for row in g3_rows}
+    oracle_by_id = {row["질문 번호"]: row for row in oracle_rows}
 
-    embedder = SentenceTransformer(BGE_M3_MODEL_ID, local_files_only=True)
+    embedder = SentenceTransformer("BAAI/bge-m3")
     profiles = build_stage_profiles(STAGE_CONTEXT_MAP_MANUAL_PATH)
     profile_embeddings = encode_stage_profiles(embedder, profiles)
 
@@ -232,6 +265,7 @@ def main():
         i_rank, i_grade = image_rank(question["정답 이미지"], retrieval["images"])
 
         g3 = g3_by_id.get(question["질문 번호"], {})
+        oracle = oracle_by_id.get(question["질문 번호"], {})
         rows.append(
             {
                 "질문 번호": question["질문 번호"],
@@ -245,24 +279,18 @@ def main():
                 "G4 적용": "O" if classification["used"] else "X",
                 "정답 텍스트": question["정답 텍스트"],
                 "G3 텍스트 정답 순위": g3.get("텍스트 정답 순위", ""),
+                "G4-oracle 텍스트 정답 순위": oracle.get("G4 텍스트 정답 순위", ""),
                 "G4 텍스트 정답 순위": t_rank,
                 "G4 텍스트 평가": t_grade,
                 "G4 텍스트 평가 근거": t_reason,
                 "정답 이미지": question["정답 이미지"],
                 "G3 이미지 정답 순위": g3.get("이미지 정답 순위", ""),
+                "G4-oracle 이미지 정답 순위": oracle.get("G4 이미지 정답 순위", ""),
                 "G4 이미지 정답 순위": i_rank,
                 "G4 이미지 평가": i_grade,
                 "G4 검색 이미지 Top-10": "\n".join(
-                    " | ".join(
-                        part
-                        for part in (
-                            f"{i}. {image['name']}",
-                            f"score={image['score']:.3f}",
-                            f"stage={image.get('stage_score', 0):.3f}",
-                            image.get("stage_reason", ""),
-                        )
-                        if part
-                    )
+                    f"{i}. {image['name']} | score={image['score']:.3f} | "
+                    f"stage={image.get('stage_score', 0):.3f} | {image.get('stage_reason', '')}"
                     for i, image in enumerate(retrieval["images"][:IMAGE_PARTIAL_LIMIT], start=1)
                 ),
             }

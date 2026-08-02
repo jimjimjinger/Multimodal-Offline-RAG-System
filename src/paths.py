@@ -12,7 +12,6 @@ VECTOR_DB_DIR = DATA_DIR / "vector_db" / "rag_db"
 MODELS_DIR = PROJECT_ROOT / "models"
 SIGLIP_MODEL_DIR = MODELS_DIR / "siglip_local"
 HF_CACHE_DIR = MODELS_DIR / "hf_cache"
-BGE_M3_MODEL_ID = "BAAI/bge-m3"
 
 FINAL_IMAGES_DIR = PROCESSED_DATA_DIR / "final_refined_data"
 TEXT_CHUNKS_PATH = PROCESSED_DATA_DIR / "text_chunks.json"
@@ -20,7 +19,10 @@ FINAL_PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "final_processing_report.jso
 PROCESSING_REPORT_PATH = PROCESSED_DATA_DIR / "processing_report.json"
 TEXT_IMAGE_MAPPING_REPORT_PATH = PROCESSED_DATA_DIR / "text_image_mapping_report.json"
 
-SCIE_DIR = PROJECT_ROOT / "SCIE용"
+SCIE_DIR = next(
+    (path for path in PROJECT_ROOT.iterdir() if path.is_dir() and path.name.startswith("SCIE")),
+    PROJECT_ROOT / "SCIE용",
+)
 SCIE_DATA_DIR = SCIE_DIR / "data"
 SCIE_EXCEL_DIR = SCIE_DIR / "excel"
 STAGE_CONTEXT_MAP_PATH = SCIE_DATA_DIR / "09_stage_context_map.csv"
@@ -28,18 +30,20 @@ STAGE_CONTEXT_MAP_MANUAL_PATH = SCIE_DATA_DIR / "11_stage_context_map_manual.csv
 
 A_SERIES_PDF = RAW_DATA_DIR / "A-Series.pdf"
 
+RUNTIME_DIR = PROJECT_ROOT / "runtime"
+OLLAMA_EXE = RUNTIME_DIR / "ollama" / "ollama.exe"
+OLLAMA_HOME = RUNTIME_DIR / "ollama_home"
+OLLAMA_MODELS = RUNTIME_DIR / "ollama_models"
 
-def configure_model_cache(offline=True):
+
+def configure_model_cache():
     os.environ["HF_HOME"] = str(HF_CACHE_DIR)
     os.environ["TRANSFORMERS_CACHE"] = str(HF_CACHE_DIR / "transformers")
-    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-    if offline:
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    else:
-        os.environ.pop("HF_HUB_OFFLINE", None)
-        os.environ.pop("TRANSFORMERS_OFFLINE", None)
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+
+def ensure_parent_dir(path):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
 
 
 def project_relative(path):
