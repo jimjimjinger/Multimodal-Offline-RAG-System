@@ -12,8 +12,7 @@
 
 ### 제작 파일
 
-- `SCIE용/산출물/도식/systemarchitecture.drawio`
-- draw.io page: `Fig1_Overall_Framework`
+- `SCIE용/산출물/도식/figure1_overall_architecture.drawio`
 
 ### 포함 요소
 
@@ -69,7 +68,7 @@ G3가 단순 이미지 검색이 아니라 여러 점수를 결합한다는 점�
 
 Multimodal Retrieval Method
 
-## Figure 4. G4 Context-aware Re-ranking 구조
+## Figure 2. G4 Context-aware Re-ranking 구조
 
 ### 목적
 
@@ -77,8 +76,7 @@ G4가 G3에서 무엇을 추가했는지 명확히 보여준다.
 
 ### 제작 파일
 
-- `SCIE용/산출물/도식/g4_reranking.drawio`
-- draw.io page: `G4_ReRanking`
+- `SCIE용/산출물/도식/figure2_g4_reranking.drawio`
 
 ### 포함 요소
 
@@ -168,9 +166,9 @@ Discussion 또는 Limitations
 ## 우선 제작 순서
 
 1. Figure 1 전체 시스템 아키텍처
-2. Figure 4 G4 context-aware re-ranking 구조
+2. Figure 2 G4 context-aware re-ranking 구조
 3. Figure 5 검색 성능 비교 그래프
 4. Figure 6 G4 개선 사례
 5. Figure 7 G4 실패 사례
 
-초기 교수님 보고용으로는 Figure 1, Figure 4, Figure 5만 먼저 만들어도 충분하다.
+초기 교수님 보고용으로는 Figure 1, Figure 2, Figure 5만 먼저 만들어도 충분하다.

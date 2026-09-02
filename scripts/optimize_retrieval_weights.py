@@ -952,6 +952,8 @@ def write_outputs(feature_cache, pair_cache, folds, g3, g4, text_g4, g3_ablation
     lines = [
         "# 검색 가중치 최적화 결과",
         "",
+        "> **구분:** 이 문서는 후보 feature cache 기반의 가중치 선택 단계 결과이다. 논문 Table III과 Table VI의 최종 end-to-end 수치는 `final_metric_provenance.md` 및 `SCIE용/data/15_*`, `31_*`, `32_*` 파일을 기준으로 한다. 아래 탐색 수치를 최종 논문 성능표와 직접 비교하거나 혼용하지 않는다.",
+        "",
         "## 실험 원칙",
         "",
         "- SigLIP 이미지와 텍스트 특징은 각각 한 번만 계산하고 이후 실험은 저장된 점수를 재정렬하는 방식으로 수행했다.",

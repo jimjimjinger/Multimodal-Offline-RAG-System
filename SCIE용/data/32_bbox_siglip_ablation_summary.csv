@@ -1,0 +1,3 @@
+﻿configuration,definition,query_count,Image Recall@1,Image Recall@5,Image Recall@10,Image MRR
+BBox-based mapping score,Spatial candidates within the BBox gate are ranked by normalized BBox distance; top two links are retained.,70,35.7%,58.6%,72.9%,0.474
+BBox candidate filter + SigLIP ranking (final),BBox limits spatial candidates and stored SigLIP similarity ranks the retained text-image links.,70,45.7%,71.4%,80.0%,0.572

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import re
 from copy import deepcopy
 from pathlib import Path
@@ -15,19 +16,26 @@ from docx.shared import Inches, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 SCIE = ROOT / "SCIE용"
-SOURCE = SCIE / "19_paper_draft_english.md"
+SOURCE = SCIE / "논문" / "IEEE Access 영문 통합 원고.md"
 TEMPLATE = SCIE / "논문" / "templates" / "Access-Template-2024.docx"
 OUTPUT = SCIE / "논문" / "IEEE Access 영문 통합 원고.docx"
 FIG1 = SCIE / "산출물" / "도식" / "figure1_overall_architecture.png"
 FIG2 = SCIE / "산출물" / "도식" / "figure2_g4_reranking.png"
+FINAL_METRICS = SCIE / "data" / "15_g1_g2_g3_g4_summary.csv"
+MAPPING_ABLATION = SCIE / "data" / "32_bbox_siglip_ablation_summary.csv"
+BOOTSTRAP_RESULTS = SCIE / "data" / "31_g3_g4_paired_bootstrap_ci.csv"
 
 IEEE_BLUE = RGBColor(0x00, 0x62, 0x9B)
 GRAY = RGBColor(0x58, 0x59, 0x5B)
 
-AUTHOR_NAME = "Jimin Lee"
-AUTHOR_AFFILIATION = (
-    "Artificial Intelligence, Graduate School of Information and Telecommunications, "
+AUTHOR_NAME = "Jimin Lee and Hyun Jung Kim"
+JIMIN_AFFILIATION = (
+    "Department of Artificial Intelligence, Graduate School of Information and Telecommunications, "
     "Konkuk University, Seoul 05029, Republic of Korea"
+)
+HYUN_JUNG_KIM_AFFILIATION = (
+    "Sang-Huh College and Department of Artificial Intelligence Convergence, Graduate School of "
+    "Engineering, Konkuk University, Seoul, Republic of Korea"
 )
 
 PAGINATION_MARK_TAGS = (
@@ -46,8 +54,45 @@ def remove_paragraph_pagination_marks(doc: Document) -> None:
             for tag in PAGINATION_MARK_TAGS:
                 for element in paragraph_properties.findall(qn(tag)):
                     paragraph_properties.remove(element)
+
+
+def ensure_dynamic_page_number(doc: Document) -> None:
+    """Replace the template's static footer page number with a PAGE field."""
+    footer = doc.sections[0].footer
+    for paragraph in footer.paragraphs:
+        if not paragraph.text.rstrip().endswith("\t1"):
+            continue
+
+        first_run = paragraph.runs[0]
+        first_run.text = paragraph.text.rsplit("\t", 1)[0]
+        for run in list(paragraph.runs[1:]):
+            paragraph._p.remove(run._r)
+
+        tab_run = paragraph.add_run("\t")
+        tab_run.font.name = "Helvetica"
+        tab_run.font.size = Pt(6)
+
+        field_run = paragraph.add_run()
+        field_run.font.name = "Helvetica"
+        field_run.font.size = Pt(6)
+        begin = OxmlElement("w:fldChar")
+        begin.set(qn("w:fldCharType"), "begin")
+        instruction = OxmlElement("w:instrText")
+        instruction.set(qn("xml:space"), "preserve")
+        instruction.text = " PAGE \\* MERGEFORMAT "
+        separate = OxmlElement("w:fldChar")
+        separate.set(qn("w:fldCharType"), "separate")
+        result = OxmlElement("w:t")
+        result.text = "1"
+        end = OxmlElement("w:fldChar")
+        end.set(qn("w:fldCharType"), "end")
+        field_run._r.extend([begin, instruction, separate, result, end])
+        break
 AUTHOR_EMAIL = "jiminlee0508@naver.com"
 AUTHOR_ORCID = "0009-0009-3159-6517"
+CORRESPONDING_AUTHOR_NAME = "Hyun Jung Kim"
+CORRESPONDING_AUTHOR_EMAIL = "nygirl@konkuk.ac.kr"
+CORRESPONDING_AUTHOR_ORCID = "0000-0003-3845-0560"
 AUTHOR_BIOGRAPHY = (
     "Jimin Lee received the B.S. degree in environmental engineering from Inha "
     "University, Incheon, Republic of Korea. Jimin Lee is currently pursuing the "
@@ -55,6 +100,13 @@ AUTHOR_BIOGRAPHY = (
     "Information and Telecommunications, Konkuk University, Seoul, Republic of "
     "Korea. Research interests include multimodal retrieval-augmented generation, "
     "local large language models, and collaborative robot training systems."
+)
+CORRESPONDING_AUTHOR_BIOGRAPHY = (
+    "Hyun Jung Kim is an Assistant Professor with Sang-Huh College and the "
+    "Department of Artificial Intelligence Convergence, Graduate School of "
+    "Engineering, Konkuk University, Seoul, Republic of Korea. Her research "
+    "interests include artificial intelligence, machine learning, and efficient "
+    "neural-network models."
 )
 
 
@@ -64,7 +116,7 @@ MAIN_HEADINGS = {
     "3. Proposed Framework": "PROPOSED FRAMEWORK",
     "4. Experimental Design": "EXPERIMENTAL DESIGN",
     "5. Experimental Results": "EXPERIMENTAL RESULTS",
-    "6. Response Quality Evaluation": "RESPONSE QUALITY EVALUATION",
+    "6. Secondary Response-Quality Analysis": "SECONDARY RESPONSE-QUALITY ANALYSIS",
     "7. Discussion": "DISCUSSION",
     "8. Conclusion": "CONCLUSION",
 }
@@ -451,13 +503,68 @@ def add_algorithm(doc: Document) -> None:
         run.font.name = "Courier New"
 
     note = doc.add_paragraph(style="PARA")
-    note.paragraph_format.space_before = Pt(2)
-    note.paragraph_format.space_after = Pt(2)
+    note.paragraph_format.space_before = Pt(5)
+    note.paragraph_format.space_after = Pt(8)
     note_run = note.add_run(
         "The parameter values are linked to the limited grid search described in Section IV-D. "
         "They are fixed across all queries but were selected on the same internal 70-query pilot set used for final evaluation."
     )
     set_run_font(note_run, 8.0, italic=True)
+
+    guide_rows = [
+        ("q, T, I", "User query and the G3 text and image candidate sets."),
+        ("S, C", "Training-stage profiles and the manual-derived context map."),
+        ("a1, a2, tau_s, tau_m", "The two highest stage-profile similarities and their minimum score and margin thresholds."),
+        ("w_s, p_x, k_x, h_x", "Stage weight and normalized page-range, keyword, and section-heading match scores. The page score is 1.00 inside the mapped range, 0.70 at one page, 0.45 at two pages, and 0 otherwise."),
+        ("v_i, l_i, n_i, m_i, d_i", "Image-only retrieval, linked-text rank, page proximity, stored SigLIP mapping after BBox filtering, and diagram-confidence scores."),
+        ("b_x, c_x, f_x", "Baseline, stage-context, and final candidate scores."),
+        (
+            "beta_t, lambda_c, lambda_p, R, rho_i",
+            "Context coefficients; baseline-rank window and rank-dependent attenuation factor.",
+        ),
+    ]
+    guide = doc.add_table(rows=2 + len(guide_rows), cols=2)
+    guide.style = "Normal Table"
+    set_fixed_table_width(guide, [1.65, 5.25])
+    set_table_borders(guide, color="6B7280", size="6")
+
+    title_cell = guide.cell(0, 0).merge(guide.cell(0, 1))
+    shade_cell(title_cell, "E9EFF5")
+    title_paragraph = title_cell.paragraphs[0]
+    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_paragraph.paragraph_format.space_after = Pt(0)
+    title_run = title_paragraph.add_run("SCORE-TERM GUIDE FOR ALGORITHM 1")
+    set_run_font(title_run, 8.5, bold=True)
+
+    for column, label in enumerate(("Term(s)", "Operational meaning")):
+        cell = guide.cell(1, column)
+        set_cell_margins(cell, top=70, start=90, bottom=70, end=90)
+        paragraph = cell.paragraphs[0]
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = paragraph.add_run(label)
+        set_run_font(run, 7.8, bold=True)
+    set_cell_bottom_border(guide.cell(1, 0), color="6B7280", size="6")
+    set_cell_bottom_border(guide.cell(1, 1), color="6B7280", size="6")
+
+    for row_index, (symbols, meaning) in enumerate(guide_rows, start=2):
+        for column, value in enumerate((symbols, meaning)):
+            cell = guide.cell(row_index, column)
+            set_cell_margins(cell, top=58, start=90, bottom=58, end=90)
+            paragraph = cell.paragraphs[0]
+            paragraph.paragraph_format.space_after = Pt(0)
+            paragraph.paragraph_format.line_spacing = 1.0
+            run = paragraph.add_run(value)
+            set_run_font(run, 7.4, italic=(column == 0))
+
+    leakage = doc.add_paragraph(style="PARA")
+    leakage.paragraph_format.space_before = Pt(6)
+    leakage.paragraph_format.space_after = Pt(2)
+    leakage_run = leakage.add_run(
+        "All match scores are normalized to [0,1]. If the stage-confidence conditions are not met, G4 returns the original G3 ranking. "
+        "For leakage control, context map C contains no query IDs, ground-truth image filenames, or ground-truth chunk identifiers."
+    )
+    set_run_font(leakage_run, 8.0)
     start_continuous_section(doc, 2)
 
 
@@ -483,23 +590,92 @@ def extract_front_matter(lines: list[str]) -> tuple[str, str, list[str]]:
     return title, " ".join(abstract_parts), [item.strip() for item in keywords.split(",")]
 
 
+def read_csv_rows(path: Path) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def validate_metric_sources(source_text: str) -> None:
+    """Fail before rendering when manuscript metrics drift from saved evidence."""
+    final_rows = {row["비교군"]: row for row in read_csv_rows(FINAL_METRICS)}
+    for group in ("G3", "G4"):
+        row = final_rows[group]
+        required = (
+            row["Image Recall@1"],
+            row["Image Recall@5"],
+            row["Image Recall@10"],
+            row["Image MRR"],
+        )
+        if not all(value in source_text for value in required):
+            raise ValueError(f"{group} 최종 이미지 지표가 영문 원고와 일치하지 않습니다: {required}")
+
+    for row in read_csv_rows(MAPPING_ABLATION):
+        table_row = (
+            f"| {row['configuration']} | {row['Image Recall@1']} | {row['Image Recall@5']} | "
+            f"{row['Image Recall@10']} | {row['Image MRR']} |"
+        )
+        if table_row not in source_text:
+            raise ValueError(f"Table III 수치가 재현 평가와 일치하지 않습니다: {table_row}")
+
+    bootstrap_rows = read_csv_rows(BOOTSTRAP_RESULTS)
+    if len(bootstrap_rows) != 4 or any(row["query_count"] != "70" for row in bootstrap_rows):
+        raise ValueError("paired bootstrap 근거 파일의 행 수 또는 질의 수가 올바르지 않습니다.")
+
+
+def validate_reference_citation_order(source_text: str) -> None:
+    """Ensure IEEE references are numbered in first-citation order."""
+    body_text, references_text = source_text.split("## References", maxsplit=1)
+    first_seen: list[int] = []
+    for group in re.findall(r"\[([0-9]+(?:\s*,\s*[0-9]+)*)\]", body_text):
+        numbers = [int(value.strip()) for value in group.split(",")]
+        if 0 in numbers:
+            continue
+        for number in numbers:
+            if number not in first_seen:
+                first_seen.append(number)
+
+    expected_citations = list(range(1, len(first_seen) + 1))
+    if first_seen != expected_citations:
+        raise ValueError(
+            "참고문헌 번호가 본문 최초 인용 순서와 일치하지 않습니다: "
+            f"{first_seen}"
+        )
+
+    reference_numbers = [
+        int(value)
+        for value in re.findall(r"^\[(\d+)\]\s", references_text, flags=re.MULTILINE)
+    ]
+    expected_references = list(range(1, len(reference_numbers) + 1))
+    if reference_numbers != expected_references:
+        raise ValueError(f"References 번호가 연속적이지 않습니다: {reference_numbers}")
+
+
 def add_front_matter(doc: Document, title: str, abstract: str, keywords: list[str]) -> None:
     dop = doc.add_paragraph(style="DOP")
     dop.add_run("Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.")
     doi = doc.add_paragraph(style="DOI")
-    doi.add_run("Digital Object Identifier 10.1109/ACCESS.2026.DOI")
+    doi.add_run("Digital Object Identifier 10.1109/ACCESS.2024.Doi Number")
 
     title_paragraph = doc.add_paragraph(style="Paper Title")
     title_paragraph.add_run(title)
 
     author = doc.add_paragraph(style="AU")
     author.add_run(AUTHOR_NAME)
-    affiliation = doc.add_paragraph(style="PI_No Space")
-    affiliation.add_run(AUTHOR_AFFILIATION)
-    contact = doc.add_paragraph(style="PI_No Space")
-    contact.add_run(f"Email: {AUTHOR_EMAIL}; ORCID: {AUTHOR_ORCID}")
+    jimin_affiliation = doc.add_paragraph(style="PI_No Space")
+    jimin_affiliation.add_run(
+        f"Jimin Lee is with {JIMIN_AFFILIATION} "
+        f"(e-mail: {AUTHOR_EMAIL}; ORCID: {AUTHOR_ORCID})."
+    )
+    corresponding_affiliation = doc.add_paragraph(style="PI_No Space")
+    corresponding_affiliation.add_run(
+        f"Hyun Jung Kim is with {HYUN_JUNG_KIM_AFFILIATION} "
+        f"(e-mail: {CORRESPONDING_AUTHOR_EMAIL}; ORCID: {CORRESPONDING_AUTHOR_ORCID})."
+    )
     corresponding = doc.add_paragraph(style="PI")
-    corresponding.add_run("Corresponding author: [to be confirmed]")
+    corresponding.add_run(
+        f"Corresponding author: {CORRESPONDING_AUTHOR_NAME} "
+        f"(e-mail: {CORRESPONDING_AUTHOR_EMAIL})."
+    )
 
     abstract_paragraph = doc.add_paragraph(style="Abstract")
     label = abstract_paragraph.add_run("ABSTRACT  ")
@@ -520,32 +696,50 @@ def add_references(doc: Document, lines: list[str]) -> None:
     add_unnumbered_heading(doc, "REFERENCES")
     for line in lines:
         paragraph = doc.add_paragraph(style="References")
-        paragraph.paragraph_format.keep_together = False
+        paragraph.paragraph_format.keep_together = "[Online]. Available:" in line
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
         run = paragraph.add_run(re.sub(r"^\[\d+\]\s*", "", line))
         set_run_font(run, 8.0)
 
 
-def add_submission_placeholders(doc: Document) -> None:
+def add_acknowledgment(doc: Document) -> None:
     add_unnumbered_heading(doc, "ACKNOWLEDGMENT")
     add_body_paragraph(
         doc,
-        "The author thanks Doosan Robotics for confirming the use of the DART-Platform manual and related visual materials in this study. "
-        "Funding information and the IEEE-required disclosure of any AI-assisted content must be reviewed and completed by the authors before submission."
+        "The authors thank the Doosan Robotics Marketing Team for confirming that the DART-Platform manual may be included in this research with clear source attribution and without a separate approval procedure. "
+        "The manual is cited in [4]. OpenAI Codex [31] was used to assist with code development, data-analysis scripting, figure formatting, and drafting and language revision across Sections I-VIII, the tables, figure captions, and Algorithm 1. "
+        "The authors are responsible for all technical decisions, experimental results, citations, and interpretations in the final manuscript."
     )
-    add_unnumbered_heading(doc, "AUTHOR BIOGRAPHY")
+
+
+def add_author_biographies(doc: Document) -> None:
+    add_unnumbered_heading(doc, "AUTHOR BIOGRAPHIES")
     add_body_paragraph(doc, AUTHOR_BIOGRAPHY)
+    add_body_paragraph(doc, CORRESPONDING_AUTHOR_BIOGRAPHY)
 
 
 def build() -> Path:
-    for required in (SOURCE, TEMPLATE, FIG1, FIG2):
+    for required in (
+        SOURCE,
+        TEMPLATE,
+        FIG1,
+        FIG2,
+        FINAL_METRICS,
+        MAPPING_ABLATION,
+        BOOTSTRAP_RESULTS,
+    ):
         if not required.exists():
             raise FileNotFoundError(required)
 
-    lines = SOURCE.read_text(encoding="utf-8").splitlines()
+    source_text = SOURCE.read_text(encoding="utf-8")
+    validate_metric_sources(source_text)
+    validate_reference_citation_order(source_text)
+    lines = source_text.splitlines()
     title, abstract, keywords = extract_front_matter(lines)
 
     doc = Document(TEMPLATE)
     clear_template_body(doc)
+    ensure_dynamic_page_number(doc)
     add_front_matter(doc, title, abstract, keywords)
 
     body_start = next(i for i, line in enumerate(lines) if line.startswith("## 1. Introduction"))
@@ -588,7 +782,8 @@ def build() -> Path:
             current_main = stripped[3:].strip()
             current_subsection = ""
             subsection_index = 0
-            add_main_heading(doc, MAIN_HEADINGS.get(current_main, current_main.upper()))
+            fallback_heading = re.sub(r"^\d+\.\s*", "", current_main).upper()
+            add_main_heading(doc, MAIN_HEADINGS.get(current_main, fallback_heading))
             index += 1
             continue
 
@@ -620,6 +815,18 @@ def build() -> Path:
             index += 1
             continue
 
+        if algorithm_inserted and stripped.startswith(
+            (
+                "In Algorithm 1,",
+                "For a candidate x,",
+                "If a_1 is below tau_s",
+            )
+        ):
+            # The compact score-term guide emitted by add_algorithm replaces
+            # the older three-paragraph notation explanation.
+            index += 1
+            continue
+
         if stripped.startswith("|"):
             rows, index = parse_table(body_lines, index)
             table_number += 1
@@ -628,7 +835,7 @@ def build() -> Path:
 
         numbered = re.match(r"^(\d+)\.\s+(.+)", stripped)
         if numbered:
-            add_list_item(doc, numbered.group(2), marker=f"{numbered.group(1)}.")
+            add_list_item(doc, numbered.group(2), marker=f"{numbered.group(1)})")
             index += 1
             continue
         if stripped.startswith("- "):
@@ -654,8 +861,9 @@ def build() -> Path:
     if not algorithm_inserted:
         add_algorithm(doc)
 
+    add_acknowledgment(doc)
     add_references(doc, reference_lines)
-    add_submission_placeholders(doc)
+    add_author_biographies(doc)
 
     doc.core_properties.title = title
     doc.core_properties.author = AUTHOR_NAME
